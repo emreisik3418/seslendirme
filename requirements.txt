@@ -1,0 +1,6 @@
+httpx
+python-docx
+pdfplumber
+python-dotenv
+streamlit
+truststore
