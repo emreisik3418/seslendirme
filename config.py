@@ -28,7 +28,7 @@ def _bool(ad: str, varsayilan: bool) -> bool:
 LLM_URL = os.getenv("LLM_URL", "")
 LLM_APP_NAME = os.getenv("LLM_APP_NAME", "")      # x-application-name header'i
 LLM_TOKEN = os.getenv("LLM_TOKEN", "")            # Auth gerekiyorsa (Bearer)
-LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "400"))  # saniye; servis uzun surebiliyor
 
 # --- TTS servisi (bilgiler gelince doldurulacak) ---
 TTS_URL = os.getenv("TTS_URL", "")

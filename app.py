@@ -3,6 +3,7 @@ DocVoice - Metin -> LLM formatlama -> Seslendirme
 Calistirma:  python -m streamlit run app.py
 """
 import json
+import re
 from datetime import datetime
 
 import streamlit as st
@@ -79,7 +80,7 @@ st.divider()
 st.subheader("3. Formatla")
 hazir = bool(st.session_state.kurallar.strip() and st.session_state.metin.strip())
 if st.button("🚀 LLM'e gönder", type="primary", disabled=not hazir):
-    with st.spinner("LLM servisi çalışıyor..."):
+    with st.spinner("LLM servisi çalışıyor... (birkaç dakika sürebilir)"):
         try:
             sonuc, ham = formatla(st.session_state.kurallar, st.session_state.metin)
             st.session_state.sonuc = sonuc
@@ -89,10 +90,14 @@ if st.button("🚀 LLM'e gönder", type="primary", disabled=not hazir):
 
 if st.session_state.sonuc:
     st.session_state.sonuc = st.text_area(
-        "Düzenlenmiş metin (seslendirmeden önce düzeltebilirsiniz)",
+        "Düzenlenmiş metin / SSML (seslendirmeden önce düzeltebilirsiniz)",
         value=st.session_state.sonuc,
         height=300,
     )
+    with st.expander("Okunabilir önizleme (etiketler gizli)"):
+        duz = re.sub(r"<break[^>]*/>", "\n", st.session_state.sonuc)
+        duz = re.sub(r"<[^>]+>", "", duz)
+        st.write(duz.strip())
     zaman = datetime.now().strftime("%Y%m%d_%H%M")
     st.download_button(
         "⬇️ Metni indir (.txt)",

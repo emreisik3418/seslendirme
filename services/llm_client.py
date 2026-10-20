@@ -19,6 +19,14 @@ def _headerlar() -> dict:
 
 def _cevabi_ayikla(veri: dict) -> str:
     """Yanittaki metni bulur. Format farkliysa burayi guncellemek yeterli."""
+    # Sirket servisi formati: {"result": 1, "error": null, "errorCode": null, "content": "..."}
+    if isinstance(veri, dict) and "content" in veri and "result" in veri:
+        if veri.get("error") or veri.get("result") != 1:
+            raise LLMHatasi(
+                f"Servis hata dondu (errorCode: {veri.get('errorCode')}): {veri.get('error')}"
+            )
+        return veri["content"] or ""
+
     try:
         return veri["choices"][0]["message"]["content"]  # OpenAI tarzi
     except (KeyError, IndexError, TypeError):
