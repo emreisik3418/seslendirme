@@ -11,6 +11,7 @@ import streamlit as st
 import config
 from services.document_reader import metin_cikar
 from services.llm_client import LLMHatasi, formatla
+from services.tts_client import TTSHatasi, dosya_uzantisi, seslendir
 
 st.set_page_config(page_title="DocVoice", page_icon="🎙️", layout="wide")
 st.title("🎙️ DocVoice")
@@ -27,6 +28,8 @@ st.session_state.setdefault("metin", "")
 st.session_state.setdefault("sonuc", "")
 st.session_state.setdefault("ham_yanit", None)
 st.session_state.setdefault("son_dosya", None)
+st.session_state.setdefault("ses", None)
+st.session_state.setdefault("gonderilen_ssml", "")
 
 # --- Yan panel: ayar durumu ---
 with st.sidebar:
@@ -40,7 +43,13 @@ with st.sidebar:
     st.caption(f"Token: {'var' if config.LLM_TOKEN else 'yok'}")
     st.caption(f"SSL doğrulama: {'açık' if config.VERIFY_SSL else 'KAPALI'}")
     st.divider()
-    st.caption("Seslendirme: " + ("tanımlı" if config.TTS_URL else "henüz ayarlanmadı"))
+    if config.TTS_URL:
+        st.success("Seslendirme servisi tanımlı")
+    else:
+        st.error("TTS_URL tanımlı değil (.env)")
+    st.caption(f"Ses modeli: {config.TTS_VOICE or '— (boş)'}")
+    st.caption(f"Çıktı formatı: {config.TTS_OUTPUT_FORMAT}")
+    st.caption(f"Anahtar: {'var' if config.TTS_KEY else 'yok'}")
 
 sol, sag = st.columns(2)
 
@@ -110,4 +119,29 @@ if st.session_state.sonuc:
 # --- 4) Seslendirme ---
 st.divider()
 st.subheader("4. Seslendir")
-st.button("🔊 Seslendir", disabled=True, help="TTS servis bilgileri gelince açılacak")
+ses_hazir = bool(st.session_state.sonuc.strip() and config.TTS_URL)
+if st.button("🔊 Seslendir", type="primary", disabled=not ses_hazir):
+    with st.spinner("Ses üretiliyor..."):
+        try:
+            ses, ssml = seslendir(st.session_state.sonuc)
+            st.session_state.ses = ses
+            st.session_state.gonderilen_ssml = ssml
+            # Kopyasini output klasorune de kaydet
+            config.CIKTI_KLASORU.mkdir(exist_ok=True)
+            ad = f"ses_{datetime.now():%Y%m%d_%H%M%S}.{dosya_uzantisi()}"
+            (config.CIKTI_KLASORU / ad).write_bytes(ses)
+            st.toast(f"Kaydedildi: output/{ad}")
+        except TTSHatasi as e:
+            st.error(str(e))
+
+if st.session_state.ses:
+    uzanti = dosya_uzantisi()
+    tur = {"mp3": "audio/mpeg", "wav": "audio/wav", "ogg": "audio/ogg", "webm": "audio/webm"}
+    st.audio(st.session_state.ses, format=tur.get(uzanti, "audio/mpeg"))
+    st.download_button(
+        f"⬇️ Sesi indir (.{uzanti})",
+        st.session_state.ses,
+        file_name=f"docvoice_{datetime.now():%Y%m%d_%H%M}.{uzanti}",
+    )
+    with st.expander("Gönderilen SSML (hata ayıklama için)"):
+        st.code(st.session_state.gonderilen_ssml, "xml")

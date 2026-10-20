@@ -30,10 +30,14 @@ LLM_APP_NAME = os.getenv("LLM_APP_NAME", "")      # x-application-name header'i
 LLM_TOKEN = os.getenv("LLM_TOKEN", "")            # Auth gerekiyorsa (Bearer)
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "400"))  # saniye; servis uzun surebiliyor
 
-# --- TTS servisi (bilgiler gelince doldurulacak) ---
+# --- TTS servisi (Azure uyumlu, SSML alir) ---
 TTS_URL = os.getenv("TTS_URL", "")
-TTS_APP_NAME = os.getenv("TTS_APP_NAME", "")
-TTS_TOKEN = os.getenv("TTS_TOKEN", "")
+TTS_KEY = os.getenv("TTS_KEY", "")                # Ocp-Apim-Subscription-Key
+TTS_OUTPUT_FORMAT = os.getenv("TTS_OUTPUT_FORMAT", "audio-24khz-48kbitrate-mono-mp3")
+TTS_VOICE = os.getenv("TTS_VOICE", "")            # <voice name="...">
+TTS_LEXICON = os.getenv("TTS_LEXICON", "")        # <lexicon uri="..."> (bos birakilabilir)
+TTS_LANG = os.getenv("TTS_LANG", "tr-TR")
+TTS_TIMEOUT = float(os.getenv("TTS_TIMEOUT", "300"))
 
 # --- Genel ---
 # SSL dogrulamasi: once true ile deneyin. Sadece zorunlu kalirsaniz false yapin.
