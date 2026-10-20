@@ -1,5 +1,5 @@
 """
-Metin -> LLM formatlama -> Seslendirme
+DocVoice - Metin -> LLM formatlama -> Seslendirme
 Calistirma:  python -m streamlit run app.py
 """
 import json
@@ -11,8 +11,9 @@ import config
 from services.document_reader import metin_cikar
 from services.llm_client import LLMHatasi, formatla
 
-st.set_page_config(page_title="Seslendirme Hazirlik", page_icon="🎙️", layout="wide")
-st.title("🎙️ Seslendirme Metni Hazırlama")
+st.set_page_config(page_title="DocVoice", page_icon="🎙️", layout="wide")
+st.title("🎙️ DocVoice")
+st.caption("Belgeden seslendirmeye hazır metin")
 
 # --- Oturum durumu ---
 if "kurallar" not in st.session_state:

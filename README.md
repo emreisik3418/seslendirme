@@ -1,4 +1,6 @@
-# Seslendirme Metni Hazırlama
+# DocVoice
+
+Belgeden seslendirmeye hazır metin.
 
 Word/PDF içeriğini şirket LLM servisine kural setiyle gönderir, düzenlenmiş metni üretir. Seslendirme (TTS) ve ileride video adımı modül olarak eklenecek.
 
