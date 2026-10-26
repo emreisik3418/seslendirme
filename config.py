@@ -43,10 +43,36 @@ TTS_RETRY = int(os.getenv("TTS_RETRY", "4"))          # 503/429 gibi gecici hata
 TTS_BEKLEME = float(os.getenv("TTS_BEKLEME", "0.3"))  # istekler arasi bekleme (sn)
 
 # --- Video ---
-VIDEO_BG = os.getenv("VIDEO_BG", "#0E1A2B")          # arka plan ust renk
-VIDEO_BG2 = os.getenv("VIDEO_BG2", "#16304F")        # arka plan alt renk
-VIDEO_ACCENT = os.getenv("VIDEO_ACCENT", "#2EC4B6")  # vurgu rengi
-VIDEO_LOGO = os.getenv("VIDEO_LOGO", "")             # logo dosya yolu (PNG, istege bagli)
+UYARILAR: list[str] = []   # arayuzde yan panelde gosterilir
+
+
+def _renk(ad: str, varsayilan: str) -> str:
+    """Renk ayarini dogrular. Kabul edilir: #E30613, E30613, #FFF, red, rgb(227,6,19).
+    Bos veya gecersizse varsayilan kullanilir ve uyari eklenir."""
+    from PIL import ImageColor
+
+    deger = (os.getenv(ad) or "").strip().strip("'\"")
+    if not deger:
+        return varsayilan
+    adaylar = [deger]
+    if not deger.startswith("#") and len(deger) in (3, 6):
+        adaylar.append("#" + deger)       # diyezsiz hex: E30613
+    for aday in adaylar:
+        try:
+            r, g, b = ImageColor.getrgb(aday)[:3]
+            return f"#{r:02X}{g:02X}{b:02X}"
+        except ValueError:
+            continue
+    UYARILAR.append(f"{ad}={deger} geçerli bir renk değil, varsayılan ({varsayilan}) kullanıldı.")
+    return varsayilan
+
+
+VIDEO_BG = _renk("VIDEO_BG", "#0E1A2B")          # arka plan ust renk
+VIDEO_BG2 = _renk("VIDEO_BG2", "#16304F")        # arka plan alt renk
+VIDEO_ACCENT = _renk("VIDEO_ACCENT", "#2EC4B6")  # vurgu rengi
+VIDEO_LOGO = os.getenv("VIDEO_LOGO", "").strip().strip("'\"")  # logo dosya yolu (PNG, istege bagli)
+if VIDEO_LOGO and not Path(VIDEO_LOGO).exists():
+    UYARILAR.append(f"VIDEO_LOGO dosyası bulunamadı: {VIDEO_LOGO}")
 VIDEO_FONT = os.getenv("VIDEO_FONT", "")             # bos: Segoe UI / Arial
 VIDEO_FONT_BOLD = os.getenv("VIDEO_FONT_BOLD", "")
 VIDEO_ALTYAZI = _bool("VIDEO_ALTYAZI", True)        # arayuzdeki "Altyazi goster" varsayilani

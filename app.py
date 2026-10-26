@@ -56,6 +56,8 @@ with st.sidebar:
     st.caption(f"Ses modeli: {config.TTS_VOICE or '— (boş)'}")
     st.caption(f"Çıktı formatı: {config.TTS_OUTPUT_FORMAT}")
     st.caption(f"Anahtar: {'var' if config.TTS_KEY else 'yok'}")
+    for uyari in config.UYARILAR:
+        st.warning(uyari)
 
 
 
