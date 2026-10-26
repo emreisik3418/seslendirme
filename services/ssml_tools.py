@@ -80,8 +80,20 @@ def _duzelt_bosluk(metin: str) -> str:
     return re.sub(r"\s+", " ", metin).strip()
 
 
+def altyazi_temizle(metin: str) -> str:
+    """Altyazidan noktalama isaretlerini kaldirir.
+    Kelime ici kesme isareti (Türkiye'nin) ve sayi ici ayraclar (97.207, 4,02) korunur."""
+    metin = re.sub(r"(?<=\d)([.,])(?=\d)", lambda m: "\x00" if m.group(1) == "." else "\x01", metin)
+    metin = re.sub(r"[,.;:!?…\"“”«»()\[\]{}<>=*#|_~^]", " ", metin)
+    metin = re.sub(r"\s*[-–—/]\s*", " ", metin)        # tire ve egik cizgi -> bosluk
+    metin = re.sub(r"(^|\s)['‘’]|['‘’](\s|$)", " ", metin)  # kelime disindaki tirnaklar
+    metin = metin.replace("\x00", ".").replace("\x01", ",")
+    return re.sub(r"\s+", " ", metin).strip()
+
+
 def _tam_cumleler(metin: str) -> list[str]:
-    return [c.strip() for c in re.split(r"(?<=[.!?])\s+", metin) if c.strip()]
+    # "1. Gösterge" veya "15.10.2026" gibi rakamdan sonraki noktada bolme
+    return [c.strip() for c in re.split(r"(?<=[^\d\s][.!?])\s+", metin) if c.strip()]
 
 
 def cumlelere_bol(metin: str, azami: int = 110) -> list[str]:
@@ -108,7 +120,15 @@ def cumlelere_bol(metin: str, azami: int = 110) -> list[str]:
                 sonuc[-1] = f"{sonuc[-1]} {parca}"
             else:
                 sonuc.append(parca)
-    return sonuc
+    temiz = [t for t in (altyazi_temizle(x) for x in sonuc) if t]
+    # Cok kisa parcalar (orn. tek basina "1") ekranda bir an gorunup kaybolmasin
+    birlesik = []
+    for t in temiz:
+        if birlesik and (len(birlesik[-1]) <= 3 or len(t) <= 3):
+            birlesik[-1] = f"{birlesik[-1]} {t}"
+        else:
+            birlesik.append(t)
+    return birlesik
 
 
 def bolumlere_ayir(icerik: str) -> list[Bolum]:

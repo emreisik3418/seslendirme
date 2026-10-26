@@ -27,7 +27,8 @@ rules/kurallar.txt           Varsayılan kural seti (system prompt)
 services/document_reader.py  Word / PDF / TXT okuma
 services/llm_client.py       LLM servisi istemcisi
 services/tts_client.py       Seslendirme servisi (SSML -> ses dosyası)
-services/ssml_tools.py       SSML'i <break> noktalarından bölümlere ayırır
+services/ssml_tools.py       SSML'i <break> noktalarından bölümlere ayırır, altyazı temizliği
+services/pdf_pages.py        PDF sayfa metinleri ve sayfa görselleri
 services/video_builder.py    Slayt çizimi + FFmpeg ile MP4 ve SRT üretimi
 output/                      Üretilen ses dosyaları (repoya gitmez)
 ```
@@ -36,8 +37,17 @@ Servis yanıt formatı farklıysa sadece `services/llm_client.py` içindeki `_ce
 
 ## Video
 
-- Metin, LLM çıktısındaki `<break>` noktalarından bölümlere ayrılır; her bölüm bir slayt olur.
-- Her bölüm ayrı seslendirilir, böylece slayt geçişleri ve altyazılar sesle senkron kalır.
+İki mod var (arayüzde 5. adım, sekmeler):
+
+**Slayt modu:** 3. adımdaki metin `<break>` noktalarından bölümlere ayrılır, her bölüm kurumsal tasarımlı bir slayt olur.
+
+**PDF sayfa modu:** Her PDF sayfası arka planda gösterilir. Her sayfanın metni kural setiyle ayrı ayrı LLM'e gönderilir
+(`LLM_PARALEL` kadar eş zamanlı), sonuçlar sayfa sayfa düzenlenebilir. Bir sayfanın seslendirmesi bitince sonrakine geçilir.
+Metni olmayan sayfalar 3 saniye sessiz gösterilir.
+
+Her iki modda:
+- Her bölüm ayrı seslendirilir, böylece geçişler ve altyazılar sesle senkron kalır.
+- Altyazılarda noktalama işaretleri gösterilmez (sayı içindeki ayraçlar ve kelime içi kesme işareti korunur).
 - Çıktı: `output/` klasörüne `.mp4` (1920x1080) ve `.srt` altyazı dosyası.
 - FFmpeg, `imageio-ffmpeg` paketiyle pip üzerinden gelir; ayrıca kurulum gerekmez.
 - Renkler ve logo `.env` içindeki `VIDEO_*` ayarlarıyla değiştirilebilir.

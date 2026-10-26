@@ -9,10 +9,11 @@ import streamlit as st
 
 import config
 from services.document_reader import metin_cikar
-from services.llm_client import LLMHatasi, formatla
+from services.llm_client import LLMHatasi, formatla, sayfalari_formatla
+from services.pdf_pages import sayfa_gorseli, sayfa_metinleri
 from services.ssml_tools import etiketsiz
 from services.tts_client import TTSHatasi, dosya_uzantisi, seslendir
-from services.video_builder import VideoHatasi, video_olustur
+from services.video_builder import VideoHatasi, pdf_videosu_olustur, video_olustur
 
 st.set_page_config(page_title="DocVoice", page_icon="🎙️", layout="wide")
 st.title("🎙️ DocVoice")
@@ -32,6 +33,9 @@ st.session_state.setdefault("son_dosya", None)
 st.session_state.setdefault("ses", None)
 st.session_state.setdefault("gonderilen_ssml", "")
 st.session_state.setdefault("video", None)
+st.session_state.setdefault("pdf_veri", None)
+st.session_state.setdefault("pdf_adi", "")
+st.session_state.setdefault("pdf_sayfa", 0)
 
 # --- Yan panel: ayar durumu ---
 with st.sidebar:
@@ -52,6 +56,34 @@ with st.sidebar:
     st.caption(f"Ses modeli: {config.TTS_VOICE or '— (boş)'}")
     st.caption(f"Çıktı formatı: {config.TTS_OUTPUT_FORMAT}")
     st.caption(f"Anahtar: {'var' if config.TTS_KEY else 'yok'}")
+
+
+
+@st.cache_data(show_spinner=False, max_entries=200)
+def kucuk_resim(veri: bytes, sira: int):
+    return sayfa_gorseli(veri, sira, dpi=45)
+
+
+def pdf_yukle(ad: str, veri: bytes):
+    """PDF sayfa modu icin dosyayi ve sayfa metinlerini hazirlar."""
+    metinler = sayfa_metinleri(veri)
+    st.session_state.pdf_veri = veri
+    st.session_state.pdf_adi = ad
+    st.session_state.pdf_sayfa = len(metinler)
+    st.session_state.pdf_metinler = metinler
+    for i in range(len(metinler)):
+        st.session_state[f"sayfa_ssml_{i}"] = ""
+
+
+def video_goster():
+    v = st.session_state.video
+    if v and v.video.exists():
+        st.video(str(v.video))
+        st.caption(f"{v.bolum_sayisi} sahne · {int(v.sure // 60)} dk {int(v.sure % 60)} sn · output/{v.video.name}")
+        k1, k2 = st.columns(2)
+        k1.download_button("⬇️ Videoyu indir (.mp4)", v.video.read_bytes(), file_name=v.video.name, mime="video/mp4")
+        k2.download_button("⬇️ Altyazıyı indir (.srt)", v.altyazi.read_bytes(), file_name=v.altyazi.name)
+
 
 sol, sag = st.columns(2)
 
@@ -76,6 +108,8 @@ with sag:
         try:
             st.session_state.metin = metin_cikar(dosya.name, dosya.getvalue())
             st.session_state.son_dosya = dosya.name
+            if dosya.name.lower().endswith(".pdf"):
+                pdf_yukle(dosya.name, dosya.getvalue())
         except Exception as e:
             st.error(f"Dosya okunamadı: {e}")
 
@@ -149,25 +183,83 @@ if st.session_state.ses:
 # --- 5) Video ---
 st.divider()
 st.subheader("5. Video oluştur")
-st.caption("Metin <break> noktalarından bölümlere ayrılır; her bölüm bir slayt olur, altyazılar sesle senkron gösterilir.")
-video_hazir = bool(st.session_state.sonuc.strip() and config.TTS_URL)
-if st.button("🎬 Video oluştur", type="primary", disabled=not video_hazir):
-    cubuk = st.progress(0.0, text="Başlıyor...")
-    try:
-        sonuc = video_olustur(
-            st.session_state.sonuc,
-            ilerleme=lambda oran, mesaj: cubuk.progress(oran, text=mesaj),
-        )
-        st.session_state.video = sonuc
-        st.toast(f"Kaydedildi: output/{sonuc.video.name}")
-    except (VideoHatasi, TTSHatasi, ValueError) as e:
-        cubuk.empty()
-        st.error(str(e))
+sekme_slayt, sekme_pdf = st.tabs(["🖼️ Slayt modu", "📄 PDF sayfa modu"])
 
-v = st.session_state.video
-if v and v.video.exists():
-    st.video(str(v.video))
-    st.caption(f"{v.bolum_sayisi} bölüm · {int(v.sure // 60)} dk {int(v.sure % 60)} sn · output/{v.video.name}")
-    k1, k2 = st.columns(2)
-    k1.download_button("⬇️ Videoyu indir (.mp4)", v.video.read_bytes(), file_name=v.video.name, mime="video/mp4")
-    k2.download_button("⬇️ Altyazıyı indir (.srt)", v.altyazi.read_bytes(), file_name=v.altyazi.name)
+with sekme_slayt:
+    st.caption("3. adımdaki metin <break> noktalarından bölümlere ayrılır; her bölüm bir slayt olur.")
+    video_hazir = bool(st.session_state.sonuc.strip() and config.TTS_URL)
+    if st.button("🎬 Video oluştur", type="primary", disabled=not video_hazir, key="btn_slayt"):
+        cubuk = st.progress(0.0, text="Başlıyor...")
+        try:
+            st.session_state.video = video_olustur(
+                st.session_state.sonuc,
+                ilerleme=lambda oran, mesaj: cubuk.progress(oran, text=mesaj),
+            )
+            st.toast(f"Kaydedildi: output/{st.session_state.video.video.name}")
+        except (VideoHatasi, TTSHatasi, ValueError) as e:
+            cubuk.empty()
+            st.error(str(e))
+
+with sekme_pdf:
+    st.caption(
+        "Her PDF sayfası arka planda gösterilir. Sayfanın metni kural setiyle ayrı ayrı LLM'e "
+        "gönderilir; o sayfanın seslendirmesi bitince sonraki sayfaya geçilir."
+    )
+    if st.session_state.pdf_veri is None:
+        pdf_dosya = st.file_uploader("PDF yükleyin", type=["pdf"], key="pdf_yukleyici")
+        if pdf_dosya is not None:
+            pdf_yukle(pdf_dosya.name, pdf_dosya.getvalue())
+            st.rerun()
+    else:
+        n = st.session_state.pdf_sayfa
+        b1, b2 = st.columns([3, 1])
+        b1.info(f"**{st.session_state.pdf_adi}** · {n} sayfa")
+        if b2.button("Başka PDF seç"):
+            st.session_state.pdf_veri = None
+            st.rerun()
+
+        if st.button("📝 Sayfaları LLM ile hazırla", disabled=not st.session_state.kurallar.strip()):
+            cubuk = st.progress(0.0, text="Sayfalar LLM'e gönderiliyor...")
+            try:
+                sonuclar = sayfalari_formatla(
+                    st.session_state.kurallar,
+                    st.session_state.pdf_metinler,
+                    ilerleme=lambda biten, top: cubuk.progress(
+                        biten / top, text=f"LLM: {biten} / {top} sayfa hazır"),
+                )
+                for i, ssml in enumerate(sonuclar):
+                    st.session_state[f"sayfa_ssml_{i}"] = ssml
+                cubuk.empty()
+                st.toast("Sayfalar hazır")
+            except LLMHatasi as e:
+                cubuk.empty()
+                st.error(str(e))
+
+        for i in range(n):
+            ham = st.session_state.pdf_metinler[i]
+            durum = "✅" if st.session_state.get(f"sayfa_ssml_{i}", "").strip() else ("—" if not ham else "⏳")
+            with st.expander(f"{durum} Sayfa {i + 1}"):
+                c1, c2 = st.columns([1, 3])
+                c1.image(kucuk_resim(st.session_state.pdf_veri, i))
+                c2.text_area(
+                    "Seslendirme metni (boş sayfa 3 sn sessiz gösterilir)",
+                    key=f"sayfa_ssml_{i}", height=200,
+                )
+                if not ham:
+                    c2.caption("Bu sayfada metin bulunamadı (görsel/taranmış sayfa olabilir).")
+
+        sayfa_ssml = [st.session_state.get(f"sayfa_ssml_{i}", "") for i in range(n)]
+        pdf_hazir = bool(config.TTS_URL and any(x.strip() for x in sayfa_ssml))
+        if st.button("🎬 PDF videosu oluştur", type="primary", disabled=not pdf_hazir, key="btn_pdf"):
+            cubuk = st.progress(0.0, text="Başlıyor...")
+            try:
+                st.session_state.video = pdf_videosu_olustur(
+                    st.session_state.pdf_veri, sayfa_ssml,
+                    ilerleme=lambda oran, mesaj: cubuk.progress(oran, text=mesaj),
+                )
+                st.toast(f"Kaydedildi: output/{st.session_state.video.video.name}")
+            except (VideoHatasi, TTSHatasi, ValueError) as e:
+                cubuk.empty()
+                st.error(str(e))
+
+video_goster()

@@ -73,3 +73,27 @@ def formatla(kurallar: str, metin: str) -> tuple[str, dict]:
         return yanit.text, {"raw": yanit.text}
 
     return _cevabi_ayikla(veri), veri
+
+
+def sayfalari_formatla(kurallar: str, metinler: list[str], ilerleme=None) -> list[str]:
+    """Her sayfa metnini ayri istekle gonderir (LLM_PARALEL kadar es zamanli).
+    Bos sayfalar icin bos metin doner. ilerleme: fn(biten, toplam)"""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    sonuc = [""] * len(metinler)
+    isler = {i: m for i, m in enumerate(metinler) if m.strip()}
+    biten = 0
+    with ThreadPoolExecutor(max_workers=max(1, config.LLM_PARALEL)) as havuz:
+        gelecek = {havuz.submit(formatla, kurallar, m): i for i, m in isler.items()}
+        for g in as_completed(gelecek):
+            i = gelecek[g]
+            try:
+                sonuc[i] = g.result()[0]
+            except LLMHatasi as e:
+                for diger in gelecek:
+                    diger.cancel()
+                raise LLMHatasi(f"Sayfa {i + 1}: {e}") from e
+            biten += 1
+            if ilerleme:
+                ilerleme(biten, len(isler))
+    return sonuc

@@ -171,15 +171,17 @@ def altyazi_ekle(slayt: Image.Image, metin: str, ilerleme: float) -> Image.Image
     d = ImageDraw.Draw(katman)
 
     font = _font(False, 42)
-    satirlar = _sar(metin, font, 1500, 2)
+    satirlar = _sar(metin, font, 1500, 2) if metin.strip() else []
     satir_y = 58
-    kutu_y = len(satirlar) * satir_y + 44
-    genis = max(font.getlength(s) for s in satirlar) + 80
-    x0 = (GENISLIK - genis) / 2
-    y0 = YUKSEKLIK - 70 - kutu_y
-    d.rounded_rectangle([x0, y0, x0 + genis, y0 + kutu_y], radius=18, fill=(0, 0, 0, 170))
-    for i, s in enumerate(satirlar):
-        d.text(((GENISLIK - font.getlength(s)) / 2, y0 + 22 + i * satir_y), s, font=font, fill=(255, 255, 255))
+    if satirlar:
+        kutu_y = len(satirlar) * satir_y + 44
+        genis = max(font.getlength(s) for s in satirlar) + 80
+        x0 = (GENISLIK - genis) / 2
+        y0 = YUKSEKLIK - 70 - kutu_y
+        d.rounded_rectangle([x0, y0, x0 + genis, y0 + kutu_y], radius=18, fill=(0, 0, 0, 170))
+        for i, s in enumerate(satirlar):
+            d.text(((GENISLIK - font.getlength(s)) / 2, y0 + 22 + i * satir_y), s,
+                   font=font, fill=(255, 255, 255))
 
     # En altta ilerleme cubugu
     d.rectangle([0, YUKSEKLIK - 8, GENISLIK, YUKSEKLIK], fill=(255, 255, 255, 30))
@@ -209,54 +211,117 @@ def _srt_zaman(sn: float) -> str:
     return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
 
 
-# ---------------------------------------------------------------- ana akis
-def video_olustur(icerik: str, ilerleme=None) -> VideoSonucu:
-    """icerik: LLM'den gelen SSML. ilerleme: fn(oran 0-1, mesaj)"""
+# ------------------------------------------------------------- PDF zemini
+SAYFA_ALANI_ALT = YUKSEKLIK - 250   # sayfa gorseli bu cizginin ustunde kalir, altyazi altta
 
+
+def sayfa_zemini(sayfa: Image.Image, sira: int, toplam: int) -> Image.Image:
+    """PDF sayfasini ortalar; arkada sayfanin bulanik, karartilmis hali olur."""
+    from PIL import ImageEnhance, ImageFilter
+
+    zemin = sayfa.copy()
+    oran = max(GENISLIK / zemin.width, YUKSEKLIK / zemin.height)
+    zemin = zemin.resize((int(zemin.width * oran), int(zemin.height * oran)))
+    x = (zemin.width - GENISLIK) // 2
+    y = (zemin.height - YUKSEKLIK) // 2
+    zemin = zemin.crop((x, y, x + GENISLIK, y + YUKSEKLIK)).filter(ImageFilter.GaussianBlur(40))
+    zemin = ImageEnhance.Brightness(zemin).enhance(0.6)
+    zemin = Image.blend(_arka_plan(), zemin, 0.22)   # kurumsal zemin + sayfanin soluk izi
+
+    alan_w, alan_h = GENISLIK - 120, SAYFA_ALANI_ALT - 40
+    on = sayfa.copy()
+    on.thumbnail((alan_w, alan_h), Image.LANCZOS)
+    px, py = (GENISLIK - on.width) // 2, 30 + (alan_h - on.height) // 2
+
+    golge = Image.new("RGBA", (on.width + 40, on.height + 40), (0, 0, 0, 0))
+    ImageDraw.Draw(golge).rectangle([20, 20, on.width + 20, on.height + 20], fill=(0, 0, 0, 150))
+    golge = golge.filter(ImageFilter.GaussianBlur(14))
+    zemin = zemin.convert("RGBA")
+    zemin.alpha_composite(golge, (px - 14, py - 8))
+    zemin = zemin.convert("RGB")
+    zemin.paste(on, (px, py))
+
+    d = ImageDraw.Draw(zemin)
+    font = _font(True, 26)
+    etiket = f"Sayfa {sira} / {toplam}"
+    w = font.getlength(etiket) + 36
+    d.rounded_rectangle([GENISLIK - 40 - w, 30, GENISLIK - 40, 74], radius=10, fill=(0, 0, 0))
+    d.text((GENISLIK - 40 - w + 18, 36), etiket, font=font, fill=(255, 255, 255))
+    return zemin
+
+
+# ---------------------------------------------------------------- ana akis
+@dataclass
+class Sahne:
+    zemin: Image.Image
+    bolumler: list           # list[Bolum]; bossa sahne sessiz gosterilir
+    sessiz_sure: float = 3.0
+
+
+def _sessiz_wav(yol: Path, sure: float) -> float:
+    with wave.open(str(yol), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(24000)
+        w.writeframes(b"\x00\x00" * int(24000 * sure))
+    return sure
+
+
+def _uret(sahneler: list[Sahne], ilerleme, on_ek: str) -> VideoSonucu:
     def bildir(oran, mesaj):
         if ilerleme:
             ilerleme(min(oran, 1.0), mesaj)
 
-    bolumler = bolumlere_ayir(icerik)
-    if not bolumler:
-        raise VideoHatasi("Seslendirilecek metin bulunamadi.")
-
     ffmpeg = ffmpeg_yolu()
-    belge_basligi = _baslik(bolumler[0])
-    toplam = len(bolumler)
+    toplam_bolum = sum(max(1, len(s.bolumler)) for s in sahneler)
 
     with tempfile.TemporaryDirectory(prefix="docvoice_") as gecici:
         tmp = Path(gecici)
 
-        # 1) Her bolumu seslendir
-        wavlar, sureler = [], []
-        for i, b in enumerate(bolumler, 1):
-            bildir(0.6 * (i - 1) / toplam, f"Seslendiriliyor: bölüm {i} / {toplam}")
-            ses, _ = seslendir(f'{b.ssml}<break time="{b.ara_sure}"/>')
-            ham = tmp / f"bolum_{i:03d}.ses"
-            ham.write_bytes(ses)
-            wav = tmp / f"bolum_{i:03d}.wav"
-            sureler.append(_wav_yap(ffmpeg, ham, wav))
-            wavlar.append(wav)
+        # 1) Seslendirme: her bolum ayri -> sureler kesin
+        wavlar, plan, n = [], [], 0      # plan: (sahne_no, bolum|None, sure)
+        for si, sahne in enumerate(sahneler):
+            if not sahne.bolumler:
+                n += 1
+                wav = tmp / f"ses_{n:04d}.wav"
+                plan.append((si, None, _sessiz_wav(wav, sahne.sessiz_sure)))
+                wavlar.append(wav)
+                continue
+            for b in sahne.bolumler:
+                n += 1
+                bildir(0.6 * (n - 1) / toplam_bolum, f"Seslendiriliyor: {n} / {toplam_bolum}")
+                ses, _ = seslendir(f'{b.ssml}<break time="{b.ara_sure}"/>')
+                ham = tmp / f"ses_{n:04d}.ham"
+                ham.write_bytes(ses)
+                wav = tmp / f"ses_{n:04d}.wav"
+                plan.append((si, b, _wav_yap(ffmpeg, ham, wav)))
+                wavlar.append(wav)
 
         tum_ses = tmp / "tum.wav"
         _wav_birlestir(wavlar, tum_ses)
-        toplam_sure = sum(sureler)
+        toplam_sure = sum(p[2] for p in plan) or 1
 
-        # 2) Kareleri ciz, sureleri hesapla
-        bildir(0.65, "Slaytlar çiziliyor")
-        kareler, srt, zaman, n = [], [], 0.0, 0
-        for i, (b, sure) in enumerate(zip(bolumler, sureler), 1):
-            slayt = slayt_ciz(b, i, toplam, belge_basligi)
-            parcalar = b.cumleler or [b.metin]
+        # 2) Kareler
+        bildir(0.65, "Kareler çiziliyor")
+        kareler, srt, zaman, k = [], [], 0.0, 0
+        for si, b, sure in plan:
+            zemin = sahneler[si].zemin
+            parcalar = (b.cumleler or [b.metin]) if b else []
+            if not parcalar:
+                k += 1
+                ad = f"kare_{k:05d}.png"
+                altyazi_ekle(zemin, "", zaman / toplam_sure).save(tmp / ad)
+                kareler.append((ad, sure))
+                zaman += sure
+                continue
             harf = sum(len(p) for p in parcalar) or 1
             for p in parcalar:
                 p_sure = sure * len(p) / harf
-                n += 1
-                ad = f"kare_{n:04d}.png"
-                altyazi_ekle(slayt, p, zaman / toplam_sure).save(tmp / ad)
+                k += 1
+                ad = f"kare_{k:05d}.png"
+                altyazi_ekle(zemin, p, zaman / toplam_sure).save(tmp / ad)
                 kareler.append((ad, p_sure))
-                srt.append(f"{n}\n{_srt_zaman(zaman)} --> {_srt_zaman(zaman + p_sure)}\n{p}\n")
+                srt.append(f"{len(srt) + 1}\n{_srt_zaman(zaman)} --> {_srt_zaman(zaman + p_sure)}\n{p}\n")
                 zaman += p_sure
 
         liste = tmp / "liste.txt"
@@ -267,7 +332,7 @@ def video_olustur(icerik: str, ilerleme=None) -> VideoSonucu:
         # 3) Video
         bildir(0.8, "Video oluşturuluyor")
         config.CIKTI_KLASORU.mkdir(exist_ok=True)
-        ad = f"docvoice_{datetime.now():%Y%m%d_%H%M%S}"
+        ad = f"{on_ek}_{datetime.now():%Y%m%d_%H%M%S}"
         video = config.CIKTI_KLASORU / f"{ad}.mp4"
         _calistir([
             ffmpeg, "-y", "-loglevel", "error",
@@ -283,4 +348,37 @@ def video_olustur(icerik: str, ilerleme=None) -> VideoSonucu:
         altyazi.write_text("\n".join(srt), encoding="utf-8")
 
     bildir(1.0, "Tamamlandı")
-    return VideoSonucu(video=video, altyazi=altyazi, sure=toplam_sure, bolum_sayisi=toplam)
+    return VideoSonucu(video=video, altyazi=altyazi, sure=toplam_sure, bolum_sayisi=len(sahneler))
+
+
+def video_olustur(icerik: str, ilerleme=None) -> VideoSonucu:
+    """Slayt modu. icerik: LLM'den gelen SSML. ilerleme: fn(oran 0-1, mesaj)"""
+    bolumler = bolumlere_ayir(icerik)
+    if not bolumler:
+        raise VideoHatasi("Seslendirilecek metin bulunamadi.")
+    belge_basligi = _baslik(bolumler[0])
+    sahneler = [
+        Sahne(zemin=slayt_ciz(b, i, len(bolumler), belge_basligi), bolumler=[b])
+        for i, b in enumerate(bolumler, 1)
+    ]
+    return _uret(sahneler, ilerleme, "docvoice")
+
+
+def pdf_videosu_olustur(pdf: bytes, sayfa_ssml: list[str], ilerleme=None) -> VideoSonucu:
+    """PDF sayfa modu. sayfa_ssml[i]: i. sayfanin seslendirme metni (bos olabilir)."""
+    from services.pdf_pages import sayfa_gorseli
+
+    toplam = len(sayfa_ssml)
+    sahneler = []
+    for i, ssml in enumerate(sayfa_ssml):
+        if ilerleme:
+            ilerleme(0.02, f"Sayfa görselleri hazırlanıyor: {i + 1} / {toplam}")
+        zemin = sayfa_zemini(sayfa_gorseli(pdf, i), i + 1, toplam)
+        try:
+            bolumler = bolumlere_ayir(ssml) if ssml.strip() else []
+        except ValueError as e:
+            raise VideoHatasi(f"Sayfa {i + 1}: {e}") from e
+        sahneler.append(Sahne(zemin=zemin, bolumler=bolumler))
+    if not any(s.bolumler for s in sahneler):
+        raise VideoHatasi("Hiçbir sayfada seslendirilecek metin yok.")
+    return _uret(sahneler, ilerleme, "docvoice_pdf")
