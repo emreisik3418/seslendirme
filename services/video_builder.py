@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 import config
 from services.ssml_tools import Bolum, bolumlere_ayir
-from services.tts_client import seslendir
+from services.tts_client import TTSHatasi, seslendir
 
 GENISLIK, YUKSEKLIK = 1920, 1080
 KENAR = 140
@@ -256,6 +256,7 @@ class Sahne:
     zemin: Image.Image
     bolumler: list           # list[Bolum]; bossa sahne sessiz gosterilir
     sessiz_sure: float = 3.0
+    etiket: str = ""         # hata mesajlarinda kullanilir: "Sayfa 3", "Slayt 2"
 
 
 def _sessiz_wav(yol: Path, sure: float) -> float:
@@ -290,7 +291,15 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str) -> VideoSonucu:
             for b in sahne.bolumler:
                 n += 1
                 bildir(0.6 * (n - 1) / toplam_bolum, f"Seslendiriliyor: {n} / {toplam_bolum}")
-                ses, _ = seslendir(f'{b.ssml}<break time="{b.ara_sure}"/>')
+                try:
+                    ses, _ = seslendir(f'{b.ssml}<break time="{b.ara_sure}"/>')
+                except TTSHatasi as e:
+                    yer = f"{sahne.etiket or f'Sahne {si + 1}'}, bölüm {sahne.bolumler.index(b) + 1}"
+                    raise TTSHatasi(
+                        f"{yer} seslendirilemedi: {e}\n\n"
+                        f"Başarılı bölümler kaydedildi; tekrar denediğinizde sadece kalanlar istenir.\n\n"
+                        f"Gönderilen metin:\n{b.ssml[:800]}"
+                    ) from e
                 ham = tmp / f"ses_{n:04d}.ham"
                 ham.write_bytes(ses)
                 wav = tmp / f"ses_{n:04d}.wav"
@@ -358,7 +367,7 @@ def video_olustur(icerik: str, ilerleme=None) -> VideoSonucu:
         raise VideoHatasi("Seslendirilecek metin bulunamadi.")
     belge_basligi = _baslik(bolumler[0])
     sahneler = [
-        Sahne(zemin=slayt_ciz(b, i, len(bolumler), belge_basligi), bolumler=[b])
+        Sahne(zemin=slayt_ciz(b, i, len(bolumler), belge_basligi), bolumler=[b], etiket=f"Slayt {i}")
         for i, b in enumerate(bolumler, 1)
     ]
     return _uret(sahneler, ilerleme, "docvoice")
@@ -378,7 +387,7 @@ def pdf_videosu_olustur(pdf: bytes, sayfa_ssml: list[str], ilerleme=None) -> Vid
             bolumler = bolumlere_ayir(ssml) if ssml.strip() else []
         except ValueError as e:
             raise VideoHatasi(f"Sayfa {i + 1}: {e}") from e
-        sahneler.append(Sahne(zemin=zemin, bolumler=bolumler))
+        sahneler.append(Sahne(zemin=zemin, bolumler=bolumler, etiket=f"Sayfa {i + 1}"))
     if not any(s.bolumler for s in sahneler):
         raise VideoHatasi("Hiçbir sayfada seslendirilecek metin yok.")
     return _uret(sahneler, ilerleme, "docvoice_pdf")

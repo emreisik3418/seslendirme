@@ -39,6 +39,8 @@ TTS_VOICE = os.getenv("TTS_VOICE", "")            # <voice name="...">
 TTS_LEXICON = os.getenv("TTS_LEXICON", "")        # <lexicon uri="..."> (bos birakilabilir)
 TTS_LANG = os.getenv("TTS_LANG", "tr-TR")
 TTS_TIMEOUT = float(os.getenv("TTS_TIMEOUT", "300"))
+TTS_RETRY = int(os.getenv("TTS_RETRY", "4"))          # 503/429 gibi gecici hatalarda tekrar sayisi
+TTS_BEKLEME = float(os.getenv("TTS_BEKLEME", "0.3"))  # istekler arasi bekleme (sn)
 
 # --- Video ---
 VIDEO_BG = os.getenv("VIDEO_BG", "#0E1A2B")          # arka plan ust renk

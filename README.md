@@ -51,3 +51,10 @@ Her iki modda:
 - Çıktı: `output/` klasörüne `.mp4` (1920x1080) ve `.srt` altyazı dosyası.
 - FFmpeg, `imageio-ffmpeg` paketiyle pip üzerinden gelir; ayrıca kurulum gerekmez.
 - Renkler ve logo `.env` içindeki `VIDEO_*` ayarlarıyla değiştirilebilir.
+
+## Sorun giderme
+
+- **HTTP 503 / 429 (seslendirme):** Servis geçici olarak yoğun. Uygulama `TTS_RETRY` kez otomatik tekrar dener.
+  Başarılı bölümler `output/.tts_cache` içinde saklanır; "Video oluştur"a tekrar basınca sadece eksikler istenir.
+  Sık tekrarlanıyorsa `.env` içinde `TTS_BEKLEME` değerini artırın (ör. 1 veya 2 saniye).
+- Hata mesajında gösterilen metni Bruno'da göndererek sorunun içerikten mi servisten mi kaynaklandığını ayırt edebilirsiniz.
