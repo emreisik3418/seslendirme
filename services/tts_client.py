@@ -7,7 +7,7 @@ from xml.sax.saxutils import quoteattr
 import httpx
 
 import config
-from services.ssml_tools import ampersand_duzelt
+from services.ssml_tools import ssml_onar
 
 
 class TTSHatasi(Exception):
@@ -16,13 +16,8 @@ class TTSHatasi(Exception):
 
 def ssml_olustur(icerik: str) -> str:
     """LLM'den gelen <prosody>/<break> icerigini <speak><voice> zarfina koyar."""
-    icerik = icerik.strip()
-
-    # Icerik zaten tam bir <speak> belgesiyse oldugu gibi kullan
-    if icerik.startswith("<speak"):
-        return icerik
-
-    icerik = ampersand_duzelt(icerik)
+    # Hatali etiketleri onar; <speak>/<voice> zarfi varsa kaldirilip .env ayarlariyla yeniden kurulur
+    icerik, _ = ssml_onar(icerik.strip())
 
     lexicon = f"<lexicon uri={quoteattr(config.TTS_LEXICON)}/>" if config.TTS_LEXICON else ""
     return (

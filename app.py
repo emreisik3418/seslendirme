@@ -11,7 +11,7 @@ import config
 from services.document_reader import metin_cikar
 from services.llm_client import LLMHatasi, formatla, sayfalari_formatla
 from services.pdf_pages import sayfa_gorseli, sayfa_metinleri
-from services.ssml_tools import etiketsiz
+from services.ssml_tools import etiketsiz, ssml_onar
 from services.tts_client import TTSHatasi, dosya_uzantisi, seslendir
 from services.video_builder import VideoHatasi, pdf_videosu_olustur, video_olustur
 
@@ -136,6 +136,9 @@ if st.button("🚀 LLM'e gönder", type="primary", disabled=not hazir):
     with st.spinner("LLM servisi çalışıyor... (birkaç dakika sürebilir)"):
         try:
             sonuc, ham = formatla(st.session_state.kurallar, st.session_state.metin)
+            sonuc, onarildi = ssml_onar(sonuc)
+            if onarildi:
+                st.info("LLM çıktısındaki hatalı SSML etiketleri otomatik düzeltildi.")
             st.session_state.sonuc = sonuc
             st.session_state.ham_yanit = ham
         except LLMHatasi as e:
@@ -240,9 +243,15 @@ with sekme_pdf:
                     ilerleme=lambda biten, top: cubuk.progress(
                         biten / top, text=f"LLM: {biten} / {top} sayfa hazır"),
                 )
+                onarilan = []
                 for i, ssml in enumerate(sonuclar):
+                    ssml, onarildi = ssml_onar(ssml) if ssml.strip() else (ssml, False)
+                    if onarildi:
+                        onarilan.append(str(i + 1))
                     st.session_state[f"sayfa_ssml_{i}"] = ssml
                 cubuk.empty()
+                if onarilan:
+                    st.info(f"Hatalı SSML etiketleri otomatik düzeltildi: sayfa {', '.join(onarilan)}")
                 st.toast("Sayfalar hazır")
             except LLMHatasi as e:
                 cubuk.empty()

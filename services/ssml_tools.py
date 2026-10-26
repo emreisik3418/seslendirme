@@ -29,21 +29,68 @@ def ampersand_duzelt(metin: str) -> str:
     return re.sub(r"&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)", "&amp;", metin)
 
 
+_ETIKET = re.compile(r"<(/?)\s*([A-Za-z][\w:.-]*)((?:\s+[\w:-]+\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s\"'>/]+))*)\s*(/?)\s*>")
+_OZNITELIK = re.compile(r"([\w:-]+)\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s\"'>/]+)")
+_SARMALAYICI = {"speak", "voice", "lexicon", "?xml", "mstts:express-as", "p", "s"}
+
+
+def ssml_onar(icerik: str) -> tuple[str, bool]:
+    """LLM ciktisindaki sik SSML hatalarini duzeltir. Doner: (onarilmis, degisti_mi)
+
+    - <break ...> kapatilmamissa <break .../> yapar, </break> siler
+    - Fazla </prosody> siler, kapanmamis <prosody> etiketlerini sonda kapatir
+    - <speak>, <voice>, <lexicon> zarflarini kaldirir (ses ayarlari .env'den gelir)
+    - Taninmayan etiketleri kaldirir, metnini korur
+    - Etiket olmayan '<' isaretlerini &lt; yapar, tek basina '&' isaretini &amp; yapar
+    - Etiket icindeki akilli tirnaklari (“ ”) ve \\" kacislarini duzeltir
+    """
+    orijinal = icerik
+    icerik = re.sub(r"<\?xml[^>]*\?>", "", icerik)
+
+    # Etiket icindeki tirnak sorunlari
+    def tirnak(m):
+        return m.group(0).replace('\\"', '"').replace("“", '"').replace("”", '"').replace("″", '"')
+    icerik = re.sub(r"<[^<>]*>", tirnak, icerik)
+
+    cikti, yigin, konum = [], [], 0
+    for m in _ETIKET.finditer(icerik):
+        cikti.append(icerik[konum:m.start()].replace("<", "&lt;"))
+        konum = m.end()
+        kapanis, ad, nitelikler, kendinden_kapali = m.group(1), m.group(2).lower(), m.group(3), m.group(4)
+
+        if ad == "break":
+            if not kapanis:
+                attr = dict((k, v.strip("\"'")) for k, v in _OZNITELIK.findall(nitelikler))
+                sure = attr.get("time") or "300ms"
+                cikti.append(f"<break time={quoteattr(sure)}/>")
+        elif ad == "prosody":
+            if kapanis:
+                if yigin:
+                    yigin.pop()
+                    cikti.append("</prosody>")
+            elif kendinden_kapali:
+                pass
+            else:
+                attr = " ".join(f"{k}={quoteattr(v.strip(chr(34) + chr(39)))}"
+                                for k, v in _OZNITELIK.findall(nitelikler))
+                cikti.append(f"<prosody {attr}>" if attr else "<prosody>")
+                yigin.append(ad)
+        # _SARMALAYICI ve diger taninmayan etiketler: etiketi at, metin kalir
+    cikti.append(icerik[konum:].replace("<", "&lt;"))
+    cikti.extend("</prosody>" for _ in yigin)
+
+    sonuc = ampersand_duzelt("".join(cikti)).strip()
+    return sonuc, _duzelt_bosluk(sonuc) != _duzelt_bosluk(orijinal)
+
+
 def _etiket(el) -> str:
     return el.tag.replace(SSML_NS, "")
 
 
 def _parcalara_ayir(icerik: str):
     """SSML'i [("metin", yazi, prosody_yigini) | ("break", sure)] listesine cevirir."""
-    icerik = ampersand_duzelt(icerik.strip())
-
-    # Tam <speak> belgesi geldiyse <voice> icini al
-    if icerik.startswith("<speak"):
-        kok = ET.fromstring(icerik)
-        ses = next((e for e in kok.iter() if _etiket(e) == "voice"), kok)
-        kok = ses
-    else:
-        kok = ET.fromstring(f"<kok>{icerik}</kok>")
+    icerik, _ = ssml_onar(icerik.strip())
+    kok = ET.fromstring(f"<kok>{icerik}</kok>")
 
     parcalar = []
 
