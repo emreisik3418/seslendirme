@@ -29,6 +29,8 @@ services/llm_client.py       LLM servisi istemcisi
 services/tts_client.py       Seslendirme servisi (SSML -> ses dosyası)
 services/ssml_tools.py       SSML'i <break> noktalarından bölümlere ayırır, altyazı temizliği
 services/pdf_pages.py        PDF sayfa metinleri ve sayfa görselleri
+services/pdf_kartlar.py      PDF'teki gösterge kartlarını (KPI) okur: etiket, birim, değer, renk, ok, yorum
+services/sunum_cizim.py      Kartları modern sunum slaytı olarak çizer, anlatıma göre vurgular
 services/video_builder.py    Slayt çizimi + FFmpeg ile MP4 ve SRT üretimi
 output/                      Üretilen ses dosyaları (repoya gitmez)
 ```
@@ -44,6 +46,13 @@ Servis yanıt formatı farklıysa sadece `services/llm_client.py` içindeki `_ce
 **PDF sayfa modu:** Her PDF sayfası arka planda gösterilir. Her sayfanın metni kural setiyle ayrı ayrı LLM'e gönderilir
 (`LLM_PARALEL` kadar eş zamanlı), sonuçlar sayfa sayfa düzenlenebilir. Bir sayfanın seslendirmesi bitince sonrakine geçilir.
 Metni olmayan sayfalar 3 saniye sessiz gösterilir.
+
+**Sunum görünümü (PDF modunda, varsayılan açık):** Gösterge kartı içeren sayfalarda rakamlar, renkler ve
+yorum PDF'ten okunur (LLM'e gönderilmez) ve modern kutucuklar halinde yeniden çizilir. Kutucuklar konuya
+göre satırlara gruplanır (bakiye, faiz); anlatıcı "bakiye" dediğinde bakiye satırı, "faiz" dediğinde faiz
+satırı vurgulanır. Birden fazla kart varsa kart adı geçtiğinde o karta odaklanılır. Kart bulunamayan
+sayfalar sayfa görseliyle gösterilir. Kartlar PDF içinde seçilebilir metin olmalıdır (resim olarak gömülü
+tablolar okunamaz).
 
 Her iki modda:
 - Her bölüm ayrı seslendirilir, böylece geçişler ve altyazılar sesle senkron kalır.

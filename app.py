@@ -10,7 +10,9 @@ import streamlit as st
 import config
 from services.document_reader import metin_cikar
 from services.llm_client import LLMHatasi, formatla, sayfalari_formatla
+from services.pdf_kartlar import sayfa_duzeni
 from services.pdf_pages import sayfa_gorseli, sayfa_metinleri
+from services.sunum_cizim import sunum_slayti
 from services.ssml_tools import etiketsiz, ssml_onar
 from services.tts_client import TTSHatasi, dosya_uzantisi, seslendir
 from services.video_builder import VideoHatasi, pdf_videosu_olustur, video_olustur
@@ -70,6 +72,24 @@ with st.sidebar:
 @st.cache_data(show_spinner=False, max_entries=200)
 def kucuk_resim(veri: bytes, sira: int):
     return sayfa_gorseli(veri, sira, dpi=45)
+
+
+@st.cache_data(show_spinner=False, max_entries=200)
+def kart_duzeni(veri: bytes, sira: int):
+    try:
+        return sayfa_duzeni(veri, sira)
+    except Exception:
+        return None
+
+
+@st.cache_data(show_spinner=False, max_entries=200)
+def sunum_onizleme(veri: bytes, sira: int, toplam: int):
+    duzen = kart_duzeni(veri, sira)
+    if not duzen:
+        return None
+    img = sunum_slayti(duzen, sira + 1, toplam, altyazi_alani=False)
+    img.thumbnail((640, 360))
+    return img
 
 
 def pdf_yukle(ad: str, veri: bytes):
@@ -234,6 +254,16 @@ with sekme_pdf:
             st.session_state.pdf_veri = None
             st.rerun()
 
+        sunum_gorunumu = st.toggle(
+            "Sunum görünümü (gösterge kartlarını modern slayt olarak yeniden çiz)",
+            value=config.VIDEO_SUNUM,
+            help="Kart bulunan sayfalarda rakamlar PDF'ten okunup yeniden çizilir; anlatılan metriğe göre "
+                 "kutucuklar vurgulanır. Kart bulunmayan sayfalar sayfa görseliyle gösterilir.",
+        )
+        if sunum_gorunumu:
+            kartli = [i + 1 for i in range(n) if kart_duzeni(st.session_state.pdf_veri, i)]
+            st.caption(f"Gösterge kartı bulunan sayfalar: {', '.join(map(str, kartli)) or 'yok'}")
+
         if st.button("📝 Sayfaları LLM ile hazırla", disabled=not st.session_state.kurallar.strip()):
             cubuk = st.progress(0.0, text="Sayfalar LLM'e gönderiliyor...")
             try:
@@ -262,7 +292,10 @@ with sekme_pdf:
             durum = "✅" if st.session_state.get(f"sayfa_ssml_{i}", "").strip() else ("—" if not ham else "⏳")
             with st.expander(f"{durum} Sayfa {i + 1}"):
                 c1, c2 = st.columns([1, 3])
-                c1.image(kucuk_resim(st.session_state.pdf_veri, i))
+                onizleme = sunum_onizleme(st.session_state.pdf_veri, i, n) if sunum_gorunumu else None
+                c1.image(onizleme if onizleme is not None else kucuk_resim(st.session_state.pdf_veri, i))
+                if onizleme is not None:
+                    c1.caption("Sunum görünümü")
                 c2.text_area(
                     "Seslendirme metni (boş sayfa 3 sn sessiz gösterilir)",
                     key=f"sayfa_ssml_{i}", height=200,
@@ -279,6 +312,7 @@ with sekme_pdf:
                     st.session_state.pdf_veri, sayfa_ssml,
                     ilerleme=lambda oran, mesaj: cubuk.progress(oran, text=mesaj),
                     altyazi=altyazi_goster,
+                    sunum=sunum_gorunumu,
                 )
                 st.toast(f"Kaydedildi: output/{st.session_state.video.video.name}")
             except (VideoHatasi, TTSHatasi, ValueError) as e:

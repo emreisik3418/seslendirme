@@ -314,6 +314,7 @@ class Sahne:
     bolumler: list           # list[Bolum]; bossa sahne sessiz gosterilir
     sessiz_sure: float = 3.0
     etiket: str = ""         # hata mesajlarinda kullanilir: "Sayfa 3", "Slayt 2"
+    ciz: object = None       # varsa her altyazi parcasi icin zemini yeniden cizer (vurgu icin)
 
 
 def _sessiz_wav(yol: Path, sure: float) -> float:
@@ -371,7 +372,8 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True) -> 
         bildir(0.65, "Kareler çiziliyor")
         kareler, srt, zaman, k = [], [], 0.0, 0
         for si, b, sure in plan:
-            zemin = sahneler[si].zemin
+            sahne = sahneler[si]
+            zemin = sahne.zemin
             parcalar = (b.cumleler or [b.metin]) if b else []
             if not parcalar:
                 k += 1
@@ -385,6 +387,8 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True) -> 
                 p_sure = sure * len(p) / harf
                 k += 1
                 ad = f"kare_{k:05d}.png"
+                if sahne.ciz:
+                    zemin = sahne.ciz(p)   # anlatilan kelimeye gore vurgulu slayt
                 # Altyazi kapaliysa ekrana yazilmaz; SRT dosyasi yine de uretilir
                 altyazi_ekle(zemin, p if altyazi else "", zaman / toplam_sure).save(tmp / ad)
                 kareler.append((ad, p_sure))
@@ -432,21 +436,31 @@ def video_olustur(icerik: str, ilerleme=None, altyazi: bool = True) -> VideoSonu
 
 
 def pdf_videosu_olustur(pdf: bytes, sayfa_ssml: list[str], ilerleme=None,
-                        altyazi: bool = True) -> VideoSonucu:
-    """PDF sayfa modu. sayfa_ssml[i]: i. sayfanin seslendirme metni (bos olabilir)."""
+                        altyazi: bool = True, sunum: bool = False) -> VideoSonucu:
+    """PDF sayfa modu. sayfa_ssml[i]: i. sayfanin seslendirme metni (bos olabilir).
+    sunum=True: gosterge karti bulunan sayfalar modern slayt olarak yeniden cizilir."""
     from services.pdf_pages import sayfa_gorseli
+    if sunum:
+        from services.pdf_kartlar import sayfa_duzeni
+        from services.sunum_cizim import SunumCizici
 
     toplam = len(sayfa_ssml)
     sahneler = []
     for i, ssml in enumerate(sayfa_ssml):
         if ilerleme:
             ilerleme(0.02, f"Sayfa görselleri hazırlanıyor: {i + 1} / {toplam}")
-        zemin = sayfa_zemini(sayfa_gorseli(pdf, i), i + 1, toplam, altyazi_alani=altyazi)
+        ciz = None
+        duzen = sayfa_duzeni(pdf, i) if sunum else None
+        if duzen:
+            ciz = SunumCizici(duzen, i + 1, toplam, altyazi_alani=altyazi)
+            zemin = ciz("")
+        else:
+            zemin = sayfa_zemini(sayfa_gorseli(pdf, i), i + 1, toplam, altyazi_alani=altyazi)
         try:
             bolumler = bolumlere_ayir(ssml) if ssml.strip() else []
         except ValueError as e:
             raise VideoHatasi(f"Sayfa {i + 1}: {e}") from e
-        sahneler.append(Sahne(zemin=zemin, bolumler=bolumler, etiket=f"Sayfa {i + 1}"))
+        sahneler.append(Sahne(zemin=zemin, bolumler=bolumler, etiket=f"Sayfa {i + 1}", ciz=ciz))
     if not any(s.bolumler for s in sahneler):
         raise VideoHatasi("Hiçbir sayfada seslendirilecek metin yok.")
     return _uret(sahneler, ilerleme, "docvoice_pdf", altyazi)
