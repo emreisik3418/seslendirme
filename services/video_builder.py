@@ -124,14 +124,66 @@ def _arka_plan() -> Image.Image:
     return img
 
 
+def _logo_yukle(azami=(260, 70)):
+    if not config.VIDEO_LOGO:
+        return None
+    try:
+        logo = Image.open(config.VIDEO_LOGO).convert("RGBA")
+    except Exception:
+        return None
+    # Etrafindaki seffaf bosluklari kirp, boylece logo verilen alana tam oturur
+    kutu = logo.getbbox()
+    if kutu:
+        logo = logo.crop(kutu)
+    logo.thumbnail(azami, Image.LANCZOS)
+    return logo
+
+
+def _logo_yerlestir(img: Image.Image, x: int, y: int, azami, zemin: bool) -> int:
+    """Logoyu (x, y) konumuna koyar; zemin=True ise arkasina beyaz kutu cizer.
+    Logodan sonraki x konumunu dondurur."""
+    logo = _logo_yukle(azami)
+    if logo is None:
+        return x
+    if zemin:
+        bosluk = 14
+        d = ImageDraw.Draw(img)
+        d.rounded_rectangle([x, y, x + logo.width + 2 * bosluk, y + logo.height + 2 * bosluk],
+                            radius=10, fill=(255, 255, 255))
+        img.paste(logo, (x + bosluk, y + bosluk), logo)
+        return x + logo.width + 2 * bosluk
+    img.paste(logo, (x, y), logo)
+    return x + logo.width
+
+
+def _logo_zemini_gerekli() -> bool:
+    ayar = config.VIDEO_LOGO_ZEMIN
+    if ayar in ("1", "true", "evet", "yes"):
+        return True
+    if ayar in ("0", "false", "hayir", "hayır", "no"):
+        return False
+    # otomatik: logonun gorunen piksellerinin ortalama parlakligi arka plana yakinsa kutu ciz
+    logo = _logo_yukle((200, 200))
+    if logo is None:
+        return False
+    gri = logo.convert("LA")
+    pikseller = [l for l, a in gri.getdata() if a > 128]
+    if not pikseller:
+        return False
+    return sum(pikseller) / len(pikseller) < 110
+
+
 def _logo_ekle(img: Image.Image) -> int:
-    """Logo varsa sol uste koyar, logodan sonraki x konumunu dondurur."""
-    if not config.VIDEO_LOGO or not Path(config.VIDEO_LOGO).exists():
+    """Slayt modu: logo varsa sol uste koyar, logodan sonraki x konumunu dondurur."""
+    if not config.VIDEO_LOGO:
         return KENAR
-    logo = Image.open(config.VIDEO_LOGO).convert("RGBA")
-    logo.thumbnail((260, 70))
-    img.paste(logo, (KENAR, 60 + (70 - logo.height) // 2), logo)
-    return KENAR + logo.width + 30
+    zemin = _logo_zemini_gerekli()
+    yukseklik = 70 if not zemin else 52
+    logo = _logo_yukle((260, yukseklik))
+    if logo is None:
+        return KENAR
+    y = 95 - (logo.height + (28 if zemin else 0)) // 2   # baslik satiriyla ayni hizada ortala
+    return _logo_yerlestir(img, KENAR, y, (260, yukseklik), zemin) + 30
 
 
 def slayt_ciz(bolum: Bolum, sira: int, toplam: int, belge_basligi: str) -> Image.Image:
@@ -242,6 +294,9 @@ def sayfa_zemini(sayfa: Image.Image, sira: int, toplam: int, altyazi_alani: bool
     zemin.alpha_composite(golge, (px - 14, py - 8))
     zemin = zemin.convert("RGB")
     zemin.paste(on, (px, py))
+
+    # Logo: sol ustte beyaz kutu icinde (her sayfa renginde gorunur kalir)
+    _logo_yerlestir(zemin, 40, 30, (220, 46), zemin=True)
 
     d = ImageDraw.Draw(zemin)
     font = _font(True, 26)

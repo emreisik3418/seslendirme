@@ -70,9 +70,40 @@ def _renk(ad: str, varsayilan: str) -> str:
 VIDEO_BG = _renk("VIDEO_BG", "#0E1A2B")          # arka plan ust renk
 VIDEO_BG2 = _renk("VIDEO_BG2", "#16304F")        # arka plan alt renk
 VIDEO_ACCENT = _renk("VIDEO_ACCENT", "#2EC4B6")  # vurgu rengi
-VIDEO_LOGO = os.getenv("VIDEO_LOGO", "").strip().strip("'\"")  # logo dosya yolu (PNG, istege bagli)
-if VIDEO_LOGO and not Path(VIDEO_LOGO).exists():
-    UYARILAR.append(f"VIDEO_LOGO dosyası bulunamadı: {VIDEO_LOGO}")
+
+
+def _logo_yolu() -> str:
+    """Logo yolunu cozer: tirnak, ~, %USERPROFILE% ve proje klasorune gore goreli yol desteklenir."""
+    ham = (os.getenv("VIDEO_LOGO") or "").strip().strip("'\"")
+    if not ham:
+        return ""
+    yol = Path(os.path.expandvars(os.path.expanduser(ham)))
+    if not yol.is_absolute():
+        yol = PROJE_KLASORU / yol
+    if not yol.exists():
+        ipucu = ""
+        if any(ord(c) < 32 for c in ham):
+            ipucu = (" Yol çift tırnak içinde ters eğik çizgiyle yazılmış olabilir; "
+                     "tırnaksız yazın veya / kullanın (C:/Users/.../logo.png).")
+        UYARILAR.append(f"VIDEO_LOGO dosyası bulunamadı: {ham}.{ipucu}")
+        return ""
+    if yol.suffix.lower() == ".svg":
+        UYARILAR.append("VIDEO_LOGO: SVG desteklenmiyor, logoyu PNG olarak kaydedin.")
+        return ""
+    try:
+        from PIL import Image
+
+        with Image.open(yol) as img:
+            img.verify()
+    except Exception as e:
+        UYARILAR.append(f"VIDEO_LOGO açılamadı ({yol.name}): {e}")
+        return ""
+    return str(yol)
+
+
+VIDEO_LOGO = _logo_yolu()                            # logo dosya yolu (PNG/JPG, istege bagli)
+# Slayt modunda logonun arkasina beyaz kutu: "otomatik" (koyu logoda acik), true veya false
+VIDEO_LOGO_ZEMIN = (os.getenv("VIDEO_LOGO_ZEMIN") or "otomatik").strip().lower()
 VIDEO_FONT = os.getenv("VIDEO_FONT", "")             # bos: Segoe UI / Arial
 VIDEO_FONT_BOLD = os.getenv("VIDEO_FONT_BOLD", "")
 VIDEO_ALTYAZI = _bool("VIDEO_ALTYAZI", True)        # arayuzdeki "Altyazi goster" varsayilani

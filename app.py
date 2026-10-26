@@ -56,6 +56,12 @@ with st.sidebar:
     st.caption(f"Ses modeli: {config.TTS_VOICE or '— (boş)'}")
     st.caption(f"Çıktı formatı: {config.TTS_OUTPUT_FORMAT}")
     st.caption(f"Anahtar: {'var' if config.TTS_KEY else 'yok'}")
+    st.divider()
+    if config.VIDEO_LOGO:
+        st.caption("Logo")
+        st.image(config.VIDEO_LOGO, width=160)
+    else:
+        st.caption("Logo: yok")
     for uyari in config.UYARILAR:
         st.warning(uyari)
 
