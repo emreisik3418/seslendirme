@@ -215,7 +215,7 @@ def _srt_zaman(sn: float) -> str:
 SAYFA_ALANI_ALT = YUKSEKLIK - 250   # sayfa gorseli bu cizginin ustunde kalir, altyazi altta
 
 
-def sayfa_zemini(sayfa: Image.Image, sira: int, toplam: int) -> Image.Image:
+def sayfa_zemini(sayfa: Image.Image, sira: int, toplam: int, altyazi_alani: bool = True) -> Image.Image:
     """PDF sayfasini ortalar; arkada sayfanin bulanik, karartilmis hali olur."""
     from PIL import ImageEnhance, ImageFilter
 
@@ -228,7 +228,9 @@ def sayfa_zemini(sayfa: Image.Image, sira: int, toplam: int) -> Image.Image:
     zemin = ImageEnhance.Brightness(zemin).enhance(0.6)
     zemin = Image.blend(_arka_plan(), zemin, 0.22)   # kurumsal zemin + sayfanin soluk izi
 
-    alan_w, alan_h = GENISLIK - 120, SAYFA_ALANI_ALT - 40
+    # Altyazi yoksa sayfa, alttaki altyazi alanini da kullanarak daha buyuk gosterilir
+    alt_sinir = SAYFA_ALANI_ALT if altyazi_alani else YUKSEKLIK - 40
+    alan_w, alan_h = GENISLIK - 120, alt_sinir - 40
     on = sayfa.copy()
     on.thumbnail((alan_w, alan_h), Image.LANCZOS)
     px, py = (GENISLIK - on.width) // 2, 30 + (alan_h - on.height) // 2
@@ -268,7 +270,7 @@ def _sessiz_wav(yol: Path, sure: float) -> float:
     return sure
 
 
-def _uret(sahneler: list[Sahne], ilerleme, on_ek: str) -> VideoSonucu:
+def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True) -> VideoSonucu:
     def bildir(oran, mesaj):
         if ilerleme:
             ilerleme(min(oran, 1.0), mesaj)
@@ -328,7 +330,8 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str) -> VideoSonucu:
                 p_sure = sure * len(p) / harf
                 k += 1
                 ad = f"kare_{k:05d}.png"
-                altyazi_ekle(zemin, p, zaman / toplam_sure).save(tmp / ad)
+                # Altyazi kapaliysa ekrana yazilmaz; SRT dosyasi yine de uretilir
+                altyazi_ekle(zemin, p if altyazi else "", zaman / toplam_sure).save(tmp / ad)
                 kareler.append((ad, p_sure))
                 srt.append(f"{len(srt) + 1}\n{_srt_zaman(zaman)} --> {_srt_zaman(zaman + p_sure)}\n{p}\n")
                 zaman += p_sure
@@ -360,7 +363,7 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str) -> VideoSonucu:
     return VideoSonucu(video=video, altyazi=altyazi, sure=toplam_sure, bolum_sayisi=len(sahneler))
 
 
-def video_olustur(icerik: str, ilerleme=None) -> VideoSonucu:
+def video_olustur(icerik: str, ilerleme=None, altyazi: bool = True) -> VideoSonucu:
     """Slayt modu. icerik: LLM'den gelen SSML. ilerleme: fn(oran 0-1, mesaj)"""
     bolumler = bolumlere_ayir(icerik)
     if not bolumler:
@@ -370,10 +373,11 @@ def video_olustur(icerik: str, ilerleme=None) -> VideoSonucu:
         Sahne(zemin=slayt_ciz(b, i, len(bolumler), belge_basligi), bolumler=[b], etiket=f"Slayt {i}")
         for i, b in enumerate(bolumler, 1)
     ]
-    return _uret(sahneler, ilerleme, "docvoice")
+    return _uret(sahneler, ilerleme, "docvoice", altyazi)
 
 
-def pdf_videosu_olustur(pdf: bytes, sayfa_ssml: list[str], ilerleme=None) -> VideoSonucu:
+def pdf_videosu_olustur(pdf: bytes, sayfa_ssml: list[str], ilerleme=None,
+                        altyazi: bool = True) -> VideoSonucu:
     """PDF sayfa modu. sayfa_ssml[i]: i. sayfanin seslendirme metni (bos olabilir)."""
     from services.pdf_pages import sayfa_gorseli
 
@@ -382,7 +386,7 @@ def pdf_videosu_olustur(pdf: bytes, sayfa_ssml: list[str], ilerleme=None) -> Vid
     for i, ssml in enumerate(sayfa_ssml):
         if ilerleme:
             ilerleme(0.02, f"Sayfa görselleri hazırlanıyor: {i + 1} / {toplam}")
-        zemin = sayfa_zemini(sayfa_gorseli(pdf, i), i + 1, toplam)
+        zemin = sayfa_zemini(sayfa_gorseli(pdf, i), i + 1, toplam, altyazi_alani=altyazi)
         try:
             bolumler = bolumlere_ayir(ssml) if ssml.strip() else []
         except ValueError as e:
@@ -390,4 +394,4 @@ def pdf_videosu_olustur(pdf: bytes, sayfa_ssml: list[str], ilerleme=None) -> Vid
         sahneler.append(Sahne(zemin=zemin, bolumler=bolumler, etiket=f"Sayfa {i + 1}"))
     if not any(s.bolumler for s in sahneler):
         raise VideoHatasi("Hiçbir sayfada seslendirilecek metin yok.")
-    return _uret(sahneler, ilerleme, "docvoice_pdf")
+    return _uret(sahneler, ilerleme, "docvoice_pdf", altyazi)

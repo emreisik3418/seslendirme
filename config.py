@@ -49,6 +49,7 @@ VIDEO_ACCENT = os.getenv("VIDEO_ACCENT", "#2EC4B6")  # vurgu rengi
 VIDEO_LOGO = os.getenv("VIDEO_LOGO", "")             # logo dosya yolu (PNG, istege bagli)
 VIDEO_FONT = os.getenv("VIDEO_FONT", "")             # bos: Segoe UI / Arial
 VIDEO_FONT_BOLD = os.getenv("VIDEO_FONT_BOLD", "")
+VIDEO_ALTYAZI = _bool("VIDEO_ALTYAZI", True)        # arayuzdeki "Altyazi goster" varsayilani
 VIDEO_FFMPEG = os.getenv("VIDEO_FFMPEG", "")         # bos: imageio-ffmpeg'den otomatik
 
 # --- Genel ---

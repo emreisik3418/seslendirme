@@ -47,6 +47,7 @@ Metni olmayan sayfalar 3 saniye sessiz gösterilir.
 
 Her iki modda:
 - Her bölüm ayrı seslendirilir, böylece geçişler ve altyazılar sesle senkron kalır.
+- Altyazı isteğe bağlıdır ("Altyazı göster" anahtarı; varsayılanı `VIDEO_ALTYAZI`). Kapalıyken de `.srt` dosyası üretilir.
 - Altyazılarda noktalama işaretleri gösterilmez (sayı içindeki ayraçlar ve kelime içi kesme işareti korunur).
 - Çıktı: `output/` klasörüne `.mp4` (1920x1080) ve `.srt` altyazı dosyası.
 - FFmpeg, `imageio-ffmpeg` paketiyle pip üzerinden gelir; ayrıca kurulum gerekmez.
