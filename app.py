@@ -3,7 +3,6 @@ DocVoice - Metin -> LLM formatlama -> Seslendirme
 Calistirma:  python -m streamlit run app.py
 """
 import json
-import re
 from datetime import datetime
 
 import streamlit as st
@@ -11,7 +10,9 @@ import streamlit as st
 import config
 from services.document_reader import metin_cikar
 from services.llm_client import LLMHatasi, formatla
+from services.ssml_tools import etiketsiz
 from services.tts_client import TTSHatasi, dosya_uzantisi, seslendir
+from services.video_builder import VideoHatasi, video_olustur
 
 st.set_page_config(page_title="DocVoice", page_icon="🎙️", layout="wide")
 st.title("🎙️ DocVoice")
@@ -30,6 +31,7 @@ st.session_state.setdefault("ham_yanit", None)
 st.session_state.setdefault("son_dosya", None)
 st.session_state.setdefault("ses", None)
 st.session_state.setdefault("gonderilen_ssml", "")
+st.session_state.setdefault("video", None)
 
 # --- Yan panel: ayar durumu ---
 with st.sidebar:
@@ -104,9 +106,7 @@ if st.session_state.sonuc:
         height=300,
     )
     with st.expander("Okunabilir önizleme (etiketler gizli)"):
-        duz = re.sub(r"<break[^>]*/>", "\n", st.session_state.sonuc)
-        duz = re.sub(r"<[^>]+>", "", duz)
-        st.write(duz.strip())
+        st.write(etiketsiz(st.session_state.sonuc))
     zaman = datetime.now().strftime("%Y%m%d_%H%M")
     st.download_button(
         "⬇️ Metni indir (.txt)",
@@ -145,3 +145,29 @@ if st.session_state.ses:
     )
     with st.expander("Gönderilen SSML (hata ayıklama için)"):
         st.code(st.session_state.gonderilen_ssml, "xml")
+
+# --- 5) Video ---
+st.divider()
+st.subheader("5. Video oluştur")
+st.caption("Metin <break> noktalarından bölümlere ayrılır; her bölüm bir slayt olur, altyazılar sesle senkron gösterilir.")
+video_hazir = bool(st.session_state.sonuc.strip() and config.TTS_URL)
+if st.button("🎬 Video oluştur", type="primary", disabled=not video_hazir):
+    cubuk = st.progress(0.0, text="Başlıyor...")
+    try:
+        sonuc = video_olustur(
+            st.session_state.sonuc,
+            ilerleme=lambda oran, mesaj: cubuk.progress(oran, text=mesaj),
+        )
+        st.session_state.video = sonuc
+        st.toast(f"Kaydedildi: output/{sonuc.video.name}")
+    except (VideoHatasi, TTSHatasi, ValueError) as e:
+        cubuk.empty()
+        st.error(str(e))
+
+v = st.session_state.video
+if v and v.video.exists():
+    st.video(str(v.video))
+    st.caption(f"{v.bolum_sayisi} bölüm · {int(v.sure // 60)} dk {int(v.sure % 60)} sn · output/{v.video.name}")
+    k1, k2 = st.columns(2)
+    k1.download_button("⬇️ Videoyu indir (.mp4)", v.video.read_bytes(), file_name=v.video.name, mime="video/mp4")
+    k2.download_button("⬇️ Altyazıyı indir (.srt)", v.altyazi.read_bytes(), file_name=v.altyazi.name)

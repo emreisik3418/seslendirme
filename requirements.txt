@@ -4,3 +4,5 @@ pdfplumber
 python-dotenv
 streamlit
 truststore
+Pillow
+imageio-ffmpeg

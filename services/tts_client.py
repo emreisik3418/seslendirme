@@ -1,11 +1,11 @@
 """Seslendirme servisi (Azure Speech uyumlu): SSML gonderir, ses dosyasi alir."""
-import re
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import quoteattr
 
 import httpx
 
 import config
+from services.ssml_tools import ampersand_duzelt
 
 
 class TTSHatasi(Exception):
@@ -20,8 +20,7 @@ def ssml_olustur(icerik: str) -> str:
     if icerik.startswith("<speak"):
         return icerik
 
-    # Metin icindeki tek basina '&' isaretleri XML'i bozar (orn. "Ar&Ge")
-    icerik = re.sub(r"&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)", "&amp;", icerik)
+    icerik = ampersand_duzelt(icerik)
 
     lexicon = f"<lexicon uri={quoteattr(config.TTS_LEXICON)}/>" if config.TTS_LEXICON else ""
     return (

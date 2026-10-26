@@ -39,6 +39,15 @@ TTS_LEXICON = os.getenv("TTS_LEXICON", "")        # <lexicon uri="..."> (bos bir
 TTS_LANG = os.getenv("TTS_LANG", "tr-TR")
 TTS_TIMEOUT = float(os.getenv("TTS_TIMEOUT", "300"))
 
+# --- Video ---
+VIDEO_BG = os.getenv("VIDEO_BG", "#0E1A2B")          # arka plan ust renk
+VIDEO_BG2 = os.getenv("VIDEO_BG2", "#16304F")        # arka plan alt renk
+VIDEO_ACCENT = os.getenv("VIDEO_ACCENT", "#2EC4B6")  # vurgu rengi
+VIDEO_LOGO = os.getenv("VIDEO_LOGO", "")             # logo dosya yolu (PNG, istege bagli)
+VIDEO_FONT = os.getenv("VIDEO_FONT", "")             # bos: Segoe UI / Arial
+VIDEO_FONT_BOLD = os.getenv("VIDEO_FONT_BOLD", "")
+VIDEO_FFMPEG = os.getenv("VIDEO_FFMPEG", "")         # bos: imageio-ffmpeg'den otomatik
+
 # --- Genel ---
 # SSL dogrulamasi: once true ile deneyin. Sadece zorunlu kalirsaniz false yapin.
 VERIFY_SSL = _bool("VERIFY_SSL", True)
