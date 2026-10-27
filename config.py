@@ -116,3 +116,25 @@ VERIFY_SSL = _bool("VERIFY_SSL", True)
 
 KURALLAR_DOSYASI = PROJE_KLASORU / "rules" / "kurallar.txt"
 CIKTI_KLASORU = PROJE_KLASORU / "output"
+
+
+def _yol(ad: str) -> Path | None:
+    """Klasor yolu ayari: tirnak, ~, %USERPROFILE%, ag paylasimi (\\\\sunucu\\klasor) ve
+    proje klasorune gore goreli yol desteklenir."""
+    ham = (os.getenv(ad) or "").strip().strip("'\"")
+    if not ham:
+        return None
+    if any(ord(c) < 32 for c in ham):
+        UYARILAR.append(f"{ad}: yol çift tırnak içinde ters eğik çizgiyle yazılmış olabilir; "
+                        "tırnaksız yazın veya / kullanın.")
+    yol = Path(os.path.expandvars(os.path.expanduser(ham)))
+    return yol if yol.is_absolute() else PROJE_KLASORU / yol
+
+
+# --- Klasor izleyici (izleyici.py) ---
+IZLE_KLASORU = _yol("IZLE_KLASORU")                  # yeni PDF'lerin dusecegi klasor
+IZLE_HEDEF_KLASORU = _yol("IZLE_HEDEF_KLASORU")      # videolarin aktarilacagi klasor
+IZLE_ARALIK = float(os.getenv("IZLE_ARALIK", "10"))  # klasor kac saniyede bir kontrol edilsin
+IZLE_BEKLEME = float(os.getenv("IZLE_BEKLEME", "5")) # dosya boyutu bu kadar sn degismezse kopyalama bitti sayilir
+IZLE_KURALLAR = _yol("IZLE_KURALLAR")                # bos: rules/kurallar.txt
+IZLE_SRT = _bool("IZLE_SRT", True)                   # .srt altyazi dosyasini da hedefe kopyala

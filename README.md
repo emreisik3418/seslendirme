@@ -22,6 +22,8 @@ Tarayıcıda `http://localhost:8501` açılır. Kapatmak için terminalde `Ctrl 
 
 ```
 app.py                       Arayüz (Streamlit)
+izleyici.py                  Klasör izleyici: gelen PDF'leri otomatik videoya çevirir
+izleyici_baslat.bat          İzleyiciyi Windows'ta çift tıklayarak başlatır
 config.py                    .env'den ayarları okur
 rules/kurallar.txt           Varsayılan kural seti (system prompt)
 services/document_reader.py  Word / PDF / TXT okuma
@@ -61,6 +63,29 @@ Her iki modda:
 - Çıktı: `output/` klasörüne `.mp4` (1920x1080) ve `.srt` altyazı dosyası.
 - FFmpeg, `imageio-ffmpeg` paketiyle pip üzerinden gelir; ayrıca kurulum gerekmez.
 - Renkler ve logo `.env` içindeki `VIDEO_*` ayarlarıyla değiştirilebilir.
+
+## Klasör izleyici (otomatik mod)
+
+Belirlenen klasöre düşen her PDF'i arayüze gerek kalmadan videoya çevirir.
+
+1. `.env` içinde `IZLE_KLASORU` ve `IZLE_HEDEF_KLASORU` değerlerini doldurun.
+2. Kural seti olarak `rules/kurallar.txt` kullanılır (arayüzde "Kuralları kaydet" ile güncellenir)
+   veya `IZLE_KURALLAR` ile ayrı bir dosya verilebilir.
+3. `izleyici_baslat.bat` dosyasına çift tıklayın ya da `python izleyici.py` çalıştırın.
+   Mevcut dosyaları işleyip çıkmak için: `python izleyici.py --bir-kez`
+
+Akış: yeni PDF → kopyalama bitene kadar beklenir → sayfalar LLM'e gönderilir → sunum videosu üretilir →
+`<pdf adı>.mp4` (ve `.srt`) hedef klasöre konur. Sunum görünümü ve altyazı `.env`'deki
+`VIDEO_SUNUM` / `VIDEO_ALTYAZI` ayarlarını izler.
+
+İzlenen klasörde oluşan alt klasörler:
+- `isleniyor/` o an işlenen PDF (bilgisayar kapanırsa sonraki açılışta yeniden kuyruğa alınır)
+- `islenen/` başarıyla videoya çevrilen PDF'ler
+- `hatali/` işlenemeyen PDF'ler; yanında `.hata.txt` açıklaması. Yeniden denemek için PDF'i ana klasöre
+  geri taşıyın; LLM ve seslendirme sonuçları önbellekte olduğu için tekrar istenmez.
+
+Kayıtlar `logs/izleyici.log` dosyasına yazılır. Bilgisayar açıldığında otomatik başlaması için
+`izleyici_baslat.bat` dosyasının kısayolunu Windows'un Başlangıç klasörüne (`Win + R` → `shell:startup`) koyabilirsiniz.
 
 ## Sorun giderme
 
