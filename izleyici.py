@@ -15,6 +15,10 @@ Izlenen klasorde olusan alt klasorler:
     isleniyor/   o an islenen PDF
     islenen/     basariyla videoya cevrilen PDF'ler
     hatali/      islenemeyen PDF'ler (yaninda .hata.txt aciklamasi)
+
+Sayfa metinleri Word'den: PDF ile ayni adli bir .docx konursa (rapor.pdf + rapor.docx) sayfa
+metinleri PDF yerine Word'den alinir. Word'de her sayfanin metninden once "Sayfa 1", "Sayfa 2"...
+satiri olmali. Word dosyasini PDF'ten once (veya ayni anda) kopyalayin.
 """
 import argparse
 import hashlib
@@ -28,6 +32,7 @@ from datetime import datetime
 from pathlib import Path
 
 import config
+from services.document_reader import sayfalara_esle, word_sayfa_metinleri
 from services.llm_client import LLMHatasi, sayfalari_formatla
 from services.pdf_pages import sayfa_metinleri
 from services.ssml_tools import ssml_onar
@@ -159,14 +164,39 @@ def _llm_onbellekli(kurallar: str, metinler: list[str]) -> list[str]:
 
 
 # --------------------------------------------------------------- isleme
-def pdf_isle(pdf_yolu: Path) -> Path:
-    """Tek bir PDF'i videoya cevirir, videoyu hedef klasore koyar. Doner: video yolu."""
+def _esli_word(pdf: Path) -> Path | None:
+    """PDF ile ayni adli .docx (rapor.pdf + rapor.docx). Word kayit sirasindaysa bekler."""
+    for p in pdf.parent.iterdir():
+        if (p.is_file() and p.suffix.lower() == ".docx" and p.stem.lower() == pdf.stem.lower()
+                and not p.name.startswith(("~$", "."))):
+            if time.time() - p.stat().st_mtime < config.IZLE_BEKLEME:
+                time.sleep(config.IZLE_BEKLEME)   # Word dosyayi henuz yaziyor olabilir
+            return p if p.exists() else None
+    return None
+
+
+def pdf_isle(pdf_yolu: Path, word_yolu: Path | None = None) -> Path:
+    """Tek bir PDF'i videoya cevirir, videoyu hedef klasore koyar. Doner: video yolu.
+    word_yolu verilirse sayfa metinleri PDF yerine Word dosyasindan alinir."""
     baslangic = time.monotonic()
     veri = pdf_yolu.read_bytes()
-    metinler = sayfa_metinleri(veri)
+    if word_yolu:
+        sayfa_sayisi = len(sayfa_metinleri(veri))
+        sayfalar, yontem = word_sayfa_metinleri(word_yolu.read_bytes())
+        metinler, uyarilar = sayfalara_esle(sayfalar, sayfa_sayisi)
+        log.info(f"  Sayfa metinleri Word'den: {word_yolu.name} "
+                 f"({'Sayfa N satırlarına' if yontem == 'isaret' else 'sayfa sonlarına'} göre)")
+        for u in uyarilar:
+            log.warning(f"  {u}")
+        if not any(m.strip() for m in metinler):
+            raise VideoHatasi("Word dosyasından hiçbir sayfaya metin eşleşmedi. Her sayfanın metninden "
+                              "önce ayrı bir satırda 'Sayfa 1', 'Sayfa 2' ... yazdığından emin olun.")
+    else:
+        metinler = sayfa_metinleri(veri)
+        if not any(m.strip() for m in metinler):
+            raise VideoHatasi("PDF'te okunabilir metin yok (taranmış belge olabilir). "
+                              "Sayfa metinlerini aynı adlı bir Word dosyasıyla verebilirsiniz.")
     log.info(f"  {len(metinler)} sayfa, metin içeren: {sum(1 for m in metinler if m.strip())}")
-    if not any(m.strip() for m in metinler):
-        raise VideoHatasi("PDF'te okunabilir metin yok (taranmış belge olabilir).")
 
     kurallar = _kurallar_dosyasi().read_text(encoding="utf-8")
     sayfa_ssml = []
@@ -209,24 +239,30 @@ def bir_tur(klasor: Path, takip: KopyalamaTakibi) -> int:
     for pdf in _yeni_pdfler(klasor):
         if not takip.hazir_mi(pdf):
             continue
-        log.info(f"Yeni PDF: {pdf.name}")
+        word = _esli_word(pdf)
+        log.info(f"Yeni PDF: {pdf.name}" + (f" + {word.name}" if word else ""))
         calisma = _tasi(pdf, klasor / ISLENIYOR)
+        word_calisma = _tasi(word, klasor / ISLENIYOR) if word else None
         try:
-            pdf_isle(calisma)
+            pdf_isle(calisma, word_calisma)
             _tasi(calisma, klasor / ISLENEN)
+            if word_calisma:
+                _tasi(word_calisma, klasor / ISLENEN)
             islenen += 1
         except (LLMHatasi, TTSHatasi, VideoHatasi, ValueError) as e:
-            _hata_kaydet(calisma, klasor, str(e))
+            _hata_kaydet(calisma, klasor, str(e), word_calisma)
         except Exception as e:   # beklenmeyen hata: izleyici durmasin
-            _hata_kaydet(calisma, klasor, f"{e}\n\n{traceback.format_exc()}")
+            _hata_kaydet(calisma, klasor, f"{e}\n\n{traceback.format_exc()}", word_calisma)
     return islenen
 
 
-def _hata_kaydet(pdf: Path, klasor: Path, mesaj: str):
+def _hata_kaydet(pdf: Path, klasor: Path, mesaj: str, word: Path | None = None):
+    if word and word.exists():
+        _tasi(word, klasor / HATALI)
     hedef = _tasi(pdf, klasor / HATALI)
     hedef.with_suffix(".hata.txt").write_text(
         f"{datetime.now():%Y-%m-%d %H:%M:%S}\n{pdf.name}\n\n{mesaj}\n\n"
-        "Yeniden denemek için PDF'i ana klasöre geri taşıyın. "
+        "Yeniden denemek için PDF'i (varsa aynı adlı Word dosyasıyla) ana klasöre geri taşıyın. "
         "Başarılı seslendirme ve LLM sonuçları önbellekte, tekrar istenmez.\n",
         encoding="utf-8",
     )
@@ -238,9 +274,9 @@ def _yarim_kalanlari_geri_al(klasor: Path):
     yarim = klasor / ISLENIYOR
     if yarim.is_dir():
         for p in yarim.iterdir():
-            if p.suffix.lower() == ".pdf":
+            if p.suffix.lower() in (".pdf", ".docx"):
                 _tasi(p, klasor)
-                log.info(f"Yarım kalan PDF yeniden kuyruğa alındı: {p.name}")
+                log.info(f"Yarım kalan dosya yeniden kuyruğa alındı: {p.name}")
 
 
 def main():

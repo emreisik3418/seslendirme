@@ -8,7 +8,7 @@ from datetime import datetime
 import streamlit as st
 
 import config
-from services.document_reader import metin_cikar
+from services.document_reader import metin_cikar, sayfalara_esle, word_sayfa_metinleri
 from services.llm_client import LLMHatasi, formatla, sayfalari_formatla
 from services.pdf_kartlar import sayfa_duzeni
 from services.pdf_pages import sayfa_gorseli, sayfa_metinleri
@@ -99,6 +99,8 @@ def pdf_yukle(ad: str, veri: bytes):
     st.session_state.pdf_adi = ad
     st.session_state.pdf_sayfa = len(metinler)
     st.session_state.pdf_metinler = metinler
+    st.session_state.pdf_metinler_pdf = metinler      # PDF'ten okunan asil metinler
+    st.session_state.word_adi = ""
     for i in range(len(metinler)):
         st.session_state[f"sayfa_ssml_{i}"] = ""
 
@@ -264,6 +266,37 @@ with sekme_pdf:
             kartli = [i + 1 for i in range(n) if kart_duzeni(st.session_state.pdf_veri, i)]
             st.caption(f"Gösterge kartı bulunan sayfalar: {', '.join(map(str, kartli)) or 'yok'}")
 
+        kaynak = st.radio(
+            "Sayfa metinleri", ["PDF'ten oku", "Word dosyasından al"], horizontal=True,
+            help="Word dosyasında her sayfanın metninden önce 'Sayfa 1', 'Sayfa 2' ... satırı olmalı. "
+                 "Bu satırlar yoksa Word'deki sayfa sonlarına (Ctrl+Enter) göre bölünür.",
+        )
+        if kaynak == "Word dosyasından al":
+            word = st.file_uploader("Sayfa metinlerini içeren Word dosyası (.docx)", type=["docx"],
+                                    key="word_yukleyici")
+            if word is not None and word.name != st.session_state.get("word_adi"):
+                try:
+                    sayfalar, yontem = word_sayfa_metinleri(word.getvalue())
+                    metinler, uyarilar = sayfalara_esle(sayfalar, n)
+                    st.session_state.pdf_metinler = metinler
+                    st.session_state.word_adi = word.name
+                    st.session_state.word_bilgi = (yontem, uyarilar)
+                except Exception as e:
+                    st.error(f"Word dosyası okunamadı: {e}")
+            if st.session_state.get("word_adi"):
+                yontem, uyarilar = st.session_state.word_bilgi
+                dolu = sum(1 for m in st.session_state.pdf_metinler if m)
+                st.success(f"**{st.session_state.word_adi}** · {dolu} / {n} sayfaya metin eşleşti "
+                           f"({'Sayfa N satırlarına' if yontem == 'isaret' else 'sayfa sonlarına'} göre)")
+                for u in uyarilar:
+                    st.warning(u)
+            else:
+                st.caption("Format: her sayfanın metninden önce ayrı bir satırda **Sayfa 1**, **Sayfa 2** ... "
+                           "Yazılmayan sayfalar sessiz geçilir.")
+        elif st.session_state.get("word_adi"):
+            st.session_state.pdf_metinler = st.session_state.pdf_metinler_pdf
+            st.session_state.word_adi = ""
+
         if st.button("📝 Sayfaları LLM ile hazırla", disabled=not st.session_state.kurallar.strip()):
             cubuk = st.progress(0.0, text="Sayfalar LLM'e gönderiliyor...")
             try:
@@ -301,7 +334,9 @@ with sekme_pdf:
                     key=f"sayfa_ssml_{i}", height=200,
                 )
                 if not ham:
-                    c2.caption("Bu sayfada metin bulunamadı (görsel/taranmış sayfa olabilir).")
+                    c2.caption("Bu sayfa için metin yok (Word'de yazılmamış veya görsel/taranmış sayfa).")
+                else:
+                    c2.caption("LLM'e gidecek metin: " + (ham[:300] + " …" if len(ham) > 300 else ham))
 
         sayfa_ssml = [st.session_state.get(f"sayfa_ssml_{i}", "") for i in range(n)]
         pdf_hazir = bool(config.TTS_URL and any(x.strip() for x in sayfa_ssml))

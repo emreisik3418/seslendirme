@@ -49,6 +49,25 @@ Servis yanıt formatı farklıysa sadece `services/llm_client.py` içindeki `_ce
 (`LLM_PARALEL` kadar eş zamanlı), sonuçlar sayfa sayfa düzenlenebilir. Bir sayfanın seslendirmesi bitince sonrakine geçilir.
 Metni olmayan sayfalar 3 saniye sessiz gösterilir.
 
+**Sayfa metinlerini Word'den vermek:** PDF sekmesinde "Sayfa metinleri → Word dosyasından al" seçilip bir .docx
+yüklenirse LLM'e PDF'teki metin yerine Word'deki metin gönderilir (görseller yine PDF'ten gelir). Format:
+
+```
+Sayfa 1
+Birinci sayfanın seslendirilecek metni. Birden fazla paragraf olabilir.
+
+Sayfa 2
+İkinci sayfanın metni.
+
+Sayfa 4
+Sayfa 3 yazılmadığı için sessiz geçilir.
+```
+
+- "Sayfa N" satırı başlık stilinde, büyük harfle veya `Sayfa 5: kısa metin` şeklinde olabilir; sıra serbesttir.
+- İlk "Sayfa N" satırından önceki metin dikkate alınmaz (açıklama yazılabilir).
+- Hiç "Sayfa N" satırı yoksa Word'deki sayfa sonlarına (Ctrl + Enter) göre bölünür.
+- Örnek: `ornekler/sayfa_metinleri_ornek.docx`
+
 **Sunum görünümü (PDF modunda, varsayılan açık):** Gösterge kartı içeren sayfalarda rakamlar, renkler ve
 yorum PDF'ten okunur (LLM'e gönderilmez) ve modern kutucuklar halinde yeniden çizilir. Kutucuklar konuya
 göre satırlara gruplanır (bakiye, faiz); anlatıcı "bakiye" dediğinde bakiye satırı, "faiz" dediğinde faiz
@@ -73,6 +92,9 @@ Belirlenen klasöre düşen her PDF'i arayüze gerek kalmadan videoya çevirir.
    veya `IZLE_KURALLAR` ile ayrı bir dosya verilebilir.
 3. `izleyici_baslat.bat` dosyasına çift tıklayın ya da `python izleyici.py` çalıştırın.
    Mevcut dosyaları işleyip çıkmak için: `python izleyici.py --bir-kez`
+
+PDF ile aynı adlı bir Word dosyası konursa (`rapor.pdf` + `rapor.docx`) sayfa metinleri Word'den alınır;
+Word dosyasını PDF'ten önce veya aynı anda kopyalayın.
 
 Akış: yeni PDF → kopyalama bitene kadar beklenir → sayfalar LLM'e gönderilir → sunum videosu üretilir →
 `<pdf adı>.mp4` (ve `.srt`) hedef klasöre konur. Sunum görünümü ve altyazı `.env`'deki
