@@ -96,6 +96,11 @@ Belirlenen klasöre düşen her PDF'i arayüze gerek kalmadan videoya çevirir.
 PDF ile aynı adlı bir Word dosyası konursa (`rapor.pdf` + `rapor.docx`) sayfa metinleri Word'den alınır;
 Word dosyasını PDF'ten önce veya aynı anda kopyalayın.
 
+PDF adının başında tarih varsa (NPrinting gibi: `20261028_APK_Rapor.pdf`) eşleştirme tarih yok sayılarak yapılır:
+- `APK_Rapor.docx` (tarihsiz) → sabit şablon; her gün kullanılır, klasörde kalır
+- `20261028_APK_Rapor.docx` (aynı tarihli) → o güne özel; PDF ile birlikte `islenen/` klasörüne taşınır
+- Video adı tarihli kalır (`20261028_APK_Rapor.mp4`), günlük videolar birbirinin üzerine yazılmaz.
+
 Akış: yeni PDF → kopyalama bitene kadar beklenir → sayfalar LLM'e gönderilir → sunum videosu üretilir →
 `<pdf adı>.mp4` (ve `.srt`) hedef klasöre konur. Sunum görünümü ve altyazı `.env`'deki
 `VIDEO_SUNUM` / `VIDEO_ALTYAZI` ayarlarını izler.

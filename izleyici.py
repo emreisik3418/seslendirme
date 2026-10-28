@@ -19,8 +19,11 @@ Izlenen klasorde olusan alt klasorler:
 Sayfa metinleri Word'den: PDF ile ayni adli bir .docx konursa (rapor.pdf + rapor.docx) sayfa
 metinleri PDF yerine Word'den alinir. Word'de her sayfanin metninden once "Sayfa 1", "Sayfa 2"...
 satiri olmali. Word dosyasini PDF'ten once (veya ayni anda) kopyalayin.
+PDF adinin basinda tarih varsa (NPrinting: 20261028_APK_Rapor.pdf) tarihsiz ad da eslesir:
+APK_Rapor.docx sabit sablon sayilir ve klasorde kalir; 20261028_APK_Rapor.docx PDF ile birlikte tasinir.
 """
 import argparse
+import re
 import hashlib
 import json
 import logging
@@ -164,15 +167,37 @@ def _llm_onbellekli(kurallar: str, metinler: list[str]) -> list[str]:
 
 
 # --------------------------------------------------------------- isleme
-def _esli_word(pdf: Path) -> Path | None:
-    """PDF ile ayni adli .docx (rapor.pdf + rapor.docx). Word kayit sirasindaysa bekler."""
-    for p in pdf.parent.iterdir():
-        if (p.is_file() and p.suffix.lower() == ".docx" and p.stem.lower() == pdf.stem.lower()
-                and not p.name.startswith(("~$", "."))):
-            if time.time() - p.stat().st_mtime < config.IZLE_BEKLEME:
-                time.sleep(config.IZLE_BEKLEME)   # Word dosyayi henuz yaziyor olabilir
-            return p if p.exists() else None
-    return None
+# Dosya adinin basindaki tarih (NPrinting vb.): 20261028_, 2026-10-28 , 28.10.2026-, 20261028_1015_ ...
+_TARIH_ONEKI = re.compile(
+    r"^(?:\d{4}[-_.]?\d{2}[-_.]?\d{2}|\d{2}[-_.]?\d{2}[-_.]?\d{4})"   # yyyymmdd / ddmmyyyy
+    r"(?:[-_ .T]?\d{2}[-_.:]?\d{2}(?:[-_.:]?\d{2})?)?"                  # istege bagli saat
+    r"[\s_\-.]+"
+)
+
+
+def tarihsiz_ad(ad: str) -> str:
+    """'20261028_APK_Rapor' -> 'APK_Rapor'. Tarih oneki yoksa adi aynen dondurur."""
+    kalan = _TARIH_ONEKI.sub("", ad, count=1)
+    return kalan or ad
+
+
+def _esli_word(pdf: Path) -> tuple[Path | None, bool]:
+    """PDF'in Word esini bulur. Doner: (word_yolu, sabit_mi)
+
+    - Ayni ad (20261028_APK_Rapor.pdf + 20261028_APK_Rapor.docx): o gune ozel, PDF ile birlikte tasinir
+    - Tarihsiz ad (20261028_APK_Rapor.pdf + APK_Rapor.docx): sabit sablon, klasorde kalir
+    """
+    adaylar = [p for p in pdf.parent.iterdir()
+               if p.is_file() and p.suffix.lower() == ".docx" and not p.name.startswith(("~$", "."))]
+    tam = next((p for p in adaylar if p.stem.lower() == pdf.stem.lower()), None)
+    kok = tarihsiz_ad(pdf.stem).lower()
+    sabit = next((p for p in adaylar if p.stem.lower() == kok and kok != pdf.stem.lower()), None)
+    secilen = tam or sabit
+    if secilen is None:
+        return None, False
+    if time.time() - secilen.stat().st_mtime < config.IZLE_BEKLEME:
+        time.sleep(config.IZLE_BEKLEME)   # Word dosyayi henuz yaziyor olabilir
+    return (secilen, secilen is not tam) if secilen.exists() else (None, False)
 
 
 def pdf_isle(pdf_yolu: Path, word_yolu: Path | None = None) -> Path:
@@ -239,20 +264,22 @@ def bir_tur(klasor: Path, takip: KopyalamaTakibi) -> int:
     for pdf in _yeni_pdfler(klasor):
         if not takip.hazir_mi(pdf):
             continue
-        word = _esli_word(pdf)
-        log.info(f"Yeni PDF: {pdf.name}" + (f" + {word.name}" if word else ""))
+        word, sabit = _esli_word(pdf)
+        log.info(f"Yeni PDF: {pdf.name}" + (f" + {word.name}" + (" (sabit şablon)" if sabit else "")
+                                             if word else ""))
         calisma = _tasi(pdf, klasor / ISLENIYOR)
-        word_calisma = _tasi(word, klasor / ISLENIYOR) if word else None
+        # Sabit sablon yerinde kalir (her gun kullanilir); o gune ozel Word PDF ile birlikte tasinir
+        word_calisma = word if sabit else (_tasi(word, klasor / ISLENIYOR) if word else None)
         try:
             pdf_isle(calisma, word_calisma)
             _tasi(calisma, klasor / ISLENEN)
-            if word_calisma:
+            if word_calisma and not sabit:
                 _tasi(word_calisma, klasor / ISLENEN)
             islenen += 1
         except (LLMHatasi, TTSHatasi, VideoHatasi, ValueError) as e:
-            _hata_kaydet(calisma, klasor, str(e), word_calisma)
+            _hata_kaydet(calisma, klasor, str(e), None if sabit else word_calisma)
         except Exception as e:   # beklenmeyen hata: izleyici durmasin
-            _hata_kaydet(calisma, klasor, f"{e}\n\n{traceback.format_exc()}", word_calisma)
+            _hata_kaydet(calisma, klasor, f"{e}\n\n{traceback.format_exc()}", None if sabit else word_calisma)
     return islenen
 
 
