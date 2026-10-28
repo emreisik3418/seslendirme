@@ -106,6 +106,7 @@ VIDEO_LOGO = _logo_yolu()                            # logo dosya yolu (PNG/JPG,
 VIDEO_LOGO_ZEMIN = (os.getenv("VIDEO_LOGO_ZEMIN") or "otomatik").strip().lower()
 VIDEO_FONT = os.getenv("VIDEO_FONT", "")             # bos: Segoe UI / Arial
 VIDEO_FONT_BOLD = os.getenv("VIDEO_FONT_BOLD", "")
+VIDEO_SAYFA_NO = _bool("VIDEO_SAYFA_NO", False)      # sag ustte sayfa numarasi
 VIDEO_SUNUM = _bool("VIDEO_SUNUM", True)            # PDF modunda gosterge kartlarini yeniden ciz
 VIDEO_ALTYAZI = _bool("VIDEO_ALTYAZI", True)        # arayuzdeki "Altyazi goster" varsayilani
 VIDEO_FFMPEG = os.getenv("VIDEO_FFMPEG", "")         # bos: imageio-ffmpeg'den otomatik

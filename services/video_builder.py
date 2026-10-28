@@ -195,8 +195,9 @@ def slayt_ciz(bolum: Bolum, sira: int, toplam: int, belge_basligi: str) -> Image
     x = _logo_ekle(img)
     kucuk = _font(True, 26)
     d.text((x, 80), _tr_buyuk(belge_basligi)[:70], font=kucuk, fill=vurgu)
-    sayac = f"{sira:02d} / {toplam:02d}"
-    d.text((GENISLIK - KENAR - kucuk.getlength(sayac), 80), sayac, font=kucuk, fill=(200, 210, 225))
+    if config.VIDEO_SAYFA_NO:
+        sayac = f"{sira:02d} / {toplam:02d}"
+        d.text((GENISLIK - KENAR - kucuk.getlength(sayac), 80), sayac, font=kucuk, fill=(200, 210, 225))
     d.line([(KENAR, 135), (GENISLIK - KENAR, 135)], fill=(70, 90, 120), width=2)
 
     # Arka planda buyuk, soluk bolum numarasi
@@ -230,7 +231,7 @@ def altyazi_ekle(slayt: Image.Image, metin: str, ilerleme: float) -> Image.Image
         genis = max(font.getlength(s) for s in satirlar) + 80
         x0 = (GENISLIK - genis) / 2
         y0 = YUKSEKLIK - 70 - kutu_y
-        d.rounded_rectangle([x0, y0, x0 + genis, y0 + kutu_y], radius=18, fill=(0, 0, 0, 170))
+        d.rounded_rectangle([x0, y0, x0 + genis, y0 + kutu_y], radius=18, fill=(0, 0, 0, 215))
         for i, s in enumerate(satirlar):
             d.text(((GENISLIK - font.getlength(s)) / 2, y0 + 22 + i * satir_y), s,
                    font=font, fill=(255, 255, 255))
@@ -267,43 +268,31 @@ def _srt_zaman(sn: float) -> str:
 SAYFA_ALANI_ALT = YUKSEKLIK - 250   # sayfa gorseli bu cizginin ustunde kalir, altyazi altta
 
 
+def _kenar_rengi(img: Image.Image) -> tuple:
+    """Sayfanin kenar rengini (genelde beyaz) bulur; bos alanlar bu renkle doldurulur."""
+    k = img.convert("RGB").resize((64, 64))
+    pikseller = [k.getpixel((x, y)) for x in range(64) for y in (0, 63)] + \
+                [k.getpixel((x, y)) for y in range(64) for x in (0, 63)]
+    return max(set(pikseller), key=pikseller.count)
+
+
 def sayfa_zemini(sayfa: Image.Image, sira: int, toplam: int, altyazi_alani: bool = True) -> Image.Image:
-    """PDF sayfasini ortalar; arkada sayfanin bulanik, karartilmis hali olur."""
-    from PIL import ImageEnhance, ImageFilter
+    """PDF sayfasini ekrana olabildigince buyuk yerlestirir. PDF'ler kendi logosu ve tasarimiyla
+    geldigi icin ek arka plan veya logo eklenmez; bos kalan alan sayfanin kendi kenar rengiyle dolar.
+    Altyazi aciksa sayfa, altyazi bandinin ustunde kalacak sekilde yerlestirilir."""
+    zemin = Image.new("RGB", (GENISLIK, YUKSEKLIK), _kenar_rengi(sayfa))
+    alan_h = SAYFA_ALANI_ALT if altyazi_alani else YUKSEKLIK
+    oran = min(GENISLIK / sayfa.width, alan_h / sayfa.height)   # en-boy oranini koruyarak sigdir
+    on = sayfa.resize((round(sayfa.width * oran), round(sayfa.height * oran)), Image.LANCZOS)
+    zemin.paste(on, ((GENISLIK - on.width) // 2, (alan_h - on.height) // 2))
 
-    zemin = sayfa.copy()
-    oran = max(GENISLIK / zemin.width, YUKSEKLIK / zemin.height)
-    zemin = zemin.resize((int(zemin.width * oran), int(zemin.height * oran)))
-    x = (zemin.width - GENISLIK) // 2
-    y = (zemin.height - YUKSEKLIK) // 2
-    zemin = zemin.crop((x, y, x + GENISLIK, y + YUKSEKLIK)).filter(ImageFilter.GaussianBlur(40))
-    zemin = ImageEnhance.Brightness(zemin).enhance(0.6)
-    zemin = Image.blend(_arka_plan(), zemin, 0.22)   # kurumsal zemin + sayfanin soluk izi
-
-    # Altyazi yoksa sayfa, alttaki altyazi alanini da kullanarak daha buyuk gosterilir
-    alt_sinir = SAYFA_ALANI_ALT if altyazi_alani else YUKSEKLIK - 40
-    alan_w, alan_h = GENISLIK - 120, alt_sinir - 40
-    on = sayfa.copy()
-    on.thumbnail((alan_w, alan_h), Image.LANCZOS)
-    px, py = (GENISLIK - on.width) // 2, 30 + (alan_h - on.height) // 2
-
-    golge = Image.new("RGBA", (on.width + 40, on.height + 40), (0, 0, 0, 0))
-    ImageDraw.Draw(golge).rectangle([20, 20, on.width + 20, on.height + 20], fill=(0, 0, 0, 150))
-    golge = golge.filter(ImageFilter.GaussianBlur(14))
-    zemin = zemin.convert("RGBA")
-    zemin.alpha_composite(golge, (px - 14, py - 8))
-    zemin = zemin.convert("RGB")
-    zemin.paste(on, (px, py))
-
-    # Logo: sol ustte beyaz kutu icinde (her sayfa renginde gorunur kalir)
-    _logo_yerlestir(zemin, 40, 30, (220, 46), zemin=True)
-
-    d = ImageDraw.Draw(zemin)
-    font = _font(True, 26)
-    etiket = f"Sayfa {sira} / {toplam}"
-    w = font.getlength(etiket) + 36
-    d.rounded_rectangle([GENISLIK - 40 - w, 30, GENISLIK - 40, 74], radius=10, fill=(0, 0, 0))
-    d.text((GENISLIK - 40 - w + 18, 36), etiket, font=font, fill=(255, 255, 255))
+    if config.VIDEO_SAYFA_NO:
+        d = ImageDraw.Draw(zemin)
+        font = _font(True, 26)
+        etiket = f"Sayfa {sira} / {toplam}"
+        w = font.getlength(etiket) + 36
+        d.rounded_rectangle([GENISLIK - 40 - w, 30, GENISLIK - 40, 74], radius=10, fill=(0, 0, 0))
+        d.text((GENISLIK - 40 - w + 18, 36), etiket, font=font, fill=(255, 255, 255))
     return zemin
 
 

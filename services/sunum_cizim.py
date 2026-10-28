@@ -187,8 +187,9 @@ def _ust_bilgi(img, duzen, sira, toplam):
     x = x + 30 if config.VIDEO_LOGO else x
     f = _font(True, 26)
     d.text((x, 70), _tr_buyuk(duzen.ust_baslik)[:80], font=f, fill=vurgu)
-    sayac = f"Sayfa {sira} / {toplam}"
-    d.text((GENISLIK - 100 - f.getlength(sayac), 70), sayac, font=f, fill=(200, 210, 225))
+    if config.VIDEO_SAYFA_NO:
+        sayac = f"Sayfa {sira} / {toplam}"
+        d.text((GENISLIK - 100 - f.getlength(sayac), 70), sayac, font=f, fill=(200, 210, 225))
     d.line([(100, 128), (GENISLIK - 100, 128)], fill=(70, 90, 120), width=2)
 
 
