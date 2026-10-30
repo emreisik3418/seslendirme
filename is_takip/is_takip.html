@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>İş Takip</title>
+<!--
+  İş Takip — tek dosyalık, sunucusuz iş takip uygulaması.
+  Kullanım: Dosyaya çift tıklayın (Chrome veya Edge önerilir).
+  Kayıt: "Veri dosyası" menüsünden bir JSON dosyası bağlayın; her değişiklik o dosyaya otomatik yazılır.
+  Dosya bağlı değilken veriler tarayıcıda (localStorage) tutulur.
+-->
+<style>
+:root{
+  --accent:#2457C5; --accent-soft:#EAF0FD; --ink:#1B1F24; --ink2:#4A5260; --muted:#5B6472;
+  --line:#E2E5EA; --line2:#EEF0F3; --bg:#F5F6F8; --card:#FFFFFF; --danger:#B42318;
+  --mono:"IBM Plex Mono","Cascadia Mono",Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 "IBM Plex Sans","Segoe UI",system-ui,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.app{min-height:100vh;display:flex;flex-direction:column}
+
+/* üst bar */
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:12px 24px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
+.search{flex:1 1 280px;max-width:520px;display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border:1px solid #D5D9E0;border-radius:8px;background:#F9FAFB}
+.search input{flex:1;min-width:0;height:38px;border:0;outline:none;background:transparent}
+.hdr-right{margin-left:auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.save-state{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-right:4px}
+.dot{width:8px;height:8px;border-radius:50%;background:#9AA1AC;flex:none}
+.dot.ok{background:#1E8E4E}.dot.warn{background:#C2610C}
+.btn{height:40px;padding:0 14px;border:1px solid #D5D9E0;border-radius:8px;background:var(--card);font-weight:500;white-space:nowrap}
+.btn:hover{background:#F3F4F6}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--danger)}
+.btn.sm{height:34px;padding:0 10px;font-size:13px}
+.link{height:36px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:#1D4ED8;font-size:13px;font-weight:500}
+.link:hover{background:#EEF2FB}
+.icon-btn{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink2)}
+.icon-btn:hover{background:#F3F4F6}
+.icon-btn.ghost{border-color:transparent;background:transparent}
+.icon-btn.danger{color:var(--danger)}
+
+.banner{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:10px 24px;background:#FDF1DC;color:#6B3A00;border-bottom:1px solid #F3DDB6}
+.banner .btn{height:34px}
+
+/* düzen */
+.layout{display:flex;flex-wrap:wrap;align-items:stretch;flex:1}
+nav.side{flex:1 1 220px;padding:20px 14px;display:flex;flex-direction:column;gap:22px}
+.side h4{margin:0;font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--muted);padding:0 10px 6px}
+.side-list{display:flex;flex-direction:column;gap:2px}
+.nav-item{display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border:0;border-radius:8px;background:transparent;text-align:left;width:100%}
+.nav-item:hover{background:#ECEFF3}
+.nav-item.active{background:#E4E8EE;font-weight:600}
+.nav-item .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-item .cnt{font-size:12px;color:var(--muted);font-weight:400}
+.swatch{width:10px;height:10px;border-radius:3px;flex:none}
+.nav-add{border:1px dashed #C9CED6;color:var(--ink2);margin-top:6px}
+
+main{flex:999 1 560px;min-width:0;padding:20px 24px 40px;display:flex;flex-direction:column;gap:16px}
+.view-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px}
+.view-head h1{margin:0;font-size:22px;font-weight:600}
+.view-head span{color:var(--muted)}
+.empty{padding:40px;text-align:center;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:10px}
+
+.group{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.group-head{display:flex;align-items:center;gap:8px;padding:0 8px 0 4px;min-height:48px}
+.group-head .gname{font-weight:600}
+.pill{font-size:12px;color:var(--ink2);background:var(--line2);border-radius:10px;padding:1px 8px}
+.chev{transition:transform .15s}
+.group.closed .chev{transform:rotate(0deg)}
+.group:not(.closed) .chev{transform:rotate(90deg)}
+.group.closed .rows{display:none}
+.group-tools{margin-left:auto;display:flex;align-items:center;gap:2px}
+
+.row{display:flex;align-items:center;gap:12px;padding:0 16px;min-height:52px;border-top:1px solid var(--line2)}
+.row:hover{background:#FAFBFC}
+.row.sel{background:var(--accent-soft)}
+.row input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);cursor:pointer;flex:none}
+.row .title{flex:1;min-width:0;padding:15px 0;border:0;background:transparent;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row.done .title{color:#6B7280;text-decoration:line-through}
+.badge{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink2)}
+.due{width:64px;text-align:right;font-size:13px;white-space:nowrap;color:var(--ink2)}
+.due.late{color:var(--danger);font-weight:500}
+.rows-empty{padding:14px 16px;border-top:1px solid var(--line2);color:var(--muted);font-size:13px}
+
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:3px 9px;border-radius:10px;white-space:nowrap}
+.s-todo{background:#EEF0F3;color:#3C4350}
+.s-doing{background:#E3ECFD;color:#1D4ED8}
+.s-wait{background:#FDF1DC;color:#8A4B00}
+.s-done{background:#E3F4EA;color:#1E6B3E}
+
+/* detay */
+aside.detail{flex:1 1 400px;min-width:0;background:var(--card);border-left:1px solid var(--line);padding:24px;display:flex;flex-direction:column;gap:24px}
+.d-top{display:flex;align-items:center;gap:8px}
+.d-top .grp{color:var(--ink2);font-size:13px}
+.d-top .tools{margin-left:auto;display:flex;gap:4px}
+.detail h2{margin:-12px 0 0;font-size:20px;font-weight:600;line-height:1.3;word-wrap:break-word}
+.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 16px}
+.meta>div{display:flex;flex-direction:column;gap:4px}
+.lbl{font-size:12px;color:var(--muted)}
+.late-text{color:var(--danger)}
+.sec{display:flex;flex-direction:column;gap:10px}
+.sec-head{display:flex;align-items:center;gap:8px}
+.sec-head h3{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.sec-head .link{margin-left:auto}
+.desc{margin:0;white-space:pre-wrap;word-wrap:break-word}
+.desc.none{color:var(--muted)}
+.fnref{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:5px;background:#E3ECFD;color:#1D4ED8;font-size:11px;font-weight:600;vertical-align:2px}
+.note{display:flex;gap:10px;align-items:flex-start;padding:10px 6px 10px 12px;background:#F9FAFB;border:1px solid var(--line2);border-radius:8px}
+.note .num{flex:none;min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:#E3ECFD;color:#1D4ED8;font-size:12px;font-weight:600}
+.note .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;white-space:pre-wrap;word-wrap:break-word}
+.note .date{font-size:12px;color:var(--muted)}
+.note .icon-btn{width:32px;height:32px;margin-top:-4px}
+.add-row{display:flex;gap:8px}
+.add-row textarea{flex:1;min-width:0;min-height:40px;height:40px;padding:9px 12px;border:1px solid #D5D9E0;border-radius:8px;resize:vertical}
+.hint{font-size:12px;color:var(--muted);margin-top:-4px}
+.code{border-radius:8px;overflow:hidden;border:1px solid #1F2630}
+.code-head{display:flex;align-items:center;gap:6px;padding:0 4px 0 12px;min-height:40px;background:#1F2630;color:#E6EDF3}
+.code-head .t{font-size:13px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.code-head .lang{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:4px;background:#2D3640;color:#C9D1D9}
+.code-head button{height:32px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:#C9D1D9;font-size:12px}
+.code-head button:hover{background:#2D3640}
+.code pre{margin:0;padding:12px 14px;background:#161B22;color:#E6EDF3;font:12.5px/1.6 var(--mono);overflow:auto;max-height:420px;white-space:pre;tab-size:4}
+.placeholder{padding:16px;border:1px dashed #C9CED6;border-radius:8px;color:var(--muted);font-size:13px;text-align:center}
+.detail-empty{margin:auto;text-align:center;color:var(--muted);padding:40px 0}
+.stamp{font-size:12px;color:var(--muted);border-top:1px solid var(--line2);padding-top:12px}
+
+/* diyaloglar */
+dialog{border:0;border-radius:12px;padding:0;width:min(560px,calc(100vw - 32px));box-shadow:0 20px 50px rgba(15,20,30,.25)}
+dialog.wide{width:min(760px,calc(100vw - 32px))}
+dialog::backdrop{background:rgba(20,24,32,.45)}
+dialog form{display:flex;flex-direction:column;gap:14px;padding:22px 24px}
+dialog h3{margin:0 0 4px;font-size:17px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;font-weight:500;color:var(--ink2)}
+.field input,.field select,.field textarea{height:40px;padding:0 10px;border:1px solid #D5D9E0;border-radius:8px;background:#fff;width:100%}
+.field textarea{height:auto;min-height:110px;padding:9px 10px;resize:vertical}
+.field textarea.codearea{font:13px/1.55 var(--mono);min-height:260px;white-space:pre;tab-size:4}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.colors{display:flex;flex-wrap:wrap;gap:8px}
+.colors label{position:relative}
+.colors input{position:absolute;opacity:0;width:1px;height:1px}
+.colors span{display:block;width:36px;height:36px;border-radius:8px;border:3px solid transparent;cursor:pointer}
+.colors input:checked+span{border-color:var(--ink)}
+.colors input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.dlg-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.dlg-actions .spacer{flex:1}
+.file-opt{display:flex;flex-direction:column;gap:8px}
+.file-opt .btn{justify-content:flex-start;text-align:left;height:auto;min-height:44px;padding:8px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.file-opt .btn small{font-weight:400;color:var(--muted);font-size:12px}
+.file-cur{padding:10px 12px;background:#F9FAFB;border:1px solid var(--line2);border-radius:8px;font-size:13px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1B1F24;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+.toast.show{opacity:1}
+@media (max-width: 720px){ aside.detail{border-left:0;border-top:1px solid var(--line)} header{padding:12px 16px;position:static} main{padding:16px} .grid2,.meta{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="7" fill="var(--accent)"/><path d="M8 14.5l4 4 8-9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      İş Takip
+    </div>
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6472" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="q" type="search" aria-label="Ara" placeholder="İş, dipnot veya kod içinde ara…  (Ctrl+K)">
+    </div>
+    <div class="hdr-right">
+      <span class="save-state" id="saveState"><span class="dot"></span><span>—</span></span>
+      <button class="btn" data-act="file-menu">Veri dosyası</button>
+      <button class="btn" data-act="new-group">+ Grup</button>
+      <button class="btn primary" data-act="new-task">+ Yeni iş</button>
+    </div>
+  </header>
+  <div id="banner"></div>
+  <div class="layout">
+    <nav class="side" id="side" aria-label="Gruplar ve görünümler"></nav>
+    <main id="list"></main>
+    <aside class="detail" id="detail" aria-label="İş detayı"></aside>
+  </div>
+</div>
+
+<!-- İş diyaloğu -->
+<dialog id="dlgTask">
+  <form method="dialog" id="fTask">
+    <h3 id="dlgTaskTitle">Yeni iş</h3>
+    <div class="field"><label for="tTitle">Başlık</label><input id="tTitle" required maxlength="200"></div>
+    <div class="grid2">
+      <div class="field"><label for="tGroup">Grup</label><select id="tGroup"></select></div>
+      <div class="field"><label for="tStatus">Durum</label><select id="tStatus"></select></div>
+      <div class="field"><label for="tPriority">Öncelik</label><select id="tPriority"></select></div>
+      <div class="field"><label for="tStart">Başlangıç</label><input id="tStart" type="date"></div>
+      <div class="field"><label for="tDue">Son tarih</label><input id="tDue" type="date"></div>
+    </div>
+    <div class="field"><label for="tDesc">Açıklama</label><textarea id="tDesc" placeholder="Dipnota atıf için [1], [2] yazabilirsiniz."></textarea></div>
+    <div class="dlg-actions">
+      <button type="button" class="btn danger" id="tDelete">Sil</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" data-close>Vazgeç</button>
+      <button type="submit" class="btn primary">Kaydet</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Grup diyaloğu -->
+<dialog id="dlgGroup">
+  <form method="dialog" id="fGroup">
+    <h3 id="dlgGroupTitle">Yeni grup</h3>
+    <div class="field"><label for="gName">Grup adı</label><input id="gName" required maxlength="80"></div>
+    <div class="field"><span class="lbl" id="gColorLbl">Renk</span><div class="colors" id="gColors" role="radiogroup" aria-labelledby="gColorLbl"></div></div>
+    <div class="dlg-actions">
+      <button type="button" class="btn danger" id="gDelete">Grubu sil</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" data-close>Vazgeç</button>
+      <button type="submit" class="btn primary">Kaydet</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Kod diyaloğu -->
+<dialog id="dlgCode" class="wide">
+  <form method="dialog" id="fCode">
+    <h3 id="dlgCodeTitle">Kod parçacığı</h3>
+    <div class="grid2">
+      <div class="field"><label for="cTitle">Başlık</label><input id="cTitle" required maxlength="120" placeholder="ör. Mükerrer kayıt sorgusu"></div>
+      <div class="field"><label for="cLang">Dil</label><select id="cLang"></select></div>
+    </div>
+    <div class="field"><label for="cCode">Kod</label><textarea id="cCode" class="codearea" spellcheck="false" required></textarea></div>
+    <div class="dlg-actions">
+      <button type="button" class="btn danger" id="cDelete">Sil</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" data-close>Vazgeç</button>
+      <button type="submit" class="btn primary">Kaydet</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Veri dosyası diyaloğu -->
+<dialog id="dlgFile">
+  <form method="dialog">
+    <h3>Veri dosyası</h3>
+    <div class="file-cur" id="fileCur"></div>
+    <div class="file-opt" id="fileOpts">
+      <button type="button" class="btn" data-act="file-new"><span>Yeni veri dosyası oluştur</span><small>Mevcut kayıtlar seçtiğiniz konuma JSON olarak kaydedilir, sonraki her değişiklik oraya yazılır.</small></button>
+      <button type="button" class="btn" data-act="file-open"><span>Mevcut veri dosyasını aç</span><small>Daha önce oluşturduğunuz JSON dosyasını açar ve ona bağlanır.</small></button>
+      <button type="button" class="btn" data-act="file-disconnect" id="btnDisconnect"><span>Dosya bağlantısını kes</span><small>Kayıtlar yalnızca tarayıcıda tutulmaya devam eder.</small></button>
+    </div>
+    <div class="file-opt">
+      <button type="button" class="btn" data-act="export"><span>JSON olarak indir</span><small>Yedek almak için o anki verilerin bir kopyasını indirir.</small></button>
+      <button type="button" class="btn" data-act="import"><span>JSON yükle</span><small>İndirilmiş bir yedeği geri yükler (mevcut verilerin yerine geçer).</small></button>
+    </div>
+    <p class="hint" id="fsNote" hidden>Bu tarayıcı dosyaya doğrudan yazmayı desteklemiyor. Chrome veya Edge kullanın ya da "JSON olarak indir" ile yedek alın.</p>
+    <div class="dlg-actions"><span class="spacer"></span><button type="button" class="btn" data-close>Kapat</button></div>
+  </form>
+</dialog>
+<input type="file" id="importInput" accept=".json,application/json" hidden>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+/* ---------------------------------------------------------------- sabitler */
+const STATUSES = ["Yapılacak", "Devam Ediyor", "Beklemede", "Tamamlandı"];
+const STATUS_CLS = { "Yapılacak": "s-todo", "Devam Ediyor": "s-doing", "Beklemede": "s-wait", "Tamamlandı": "s-done" };
+const PRIORITIES = ["Düşük", "Orta", "Yüksek"];
+const LANGS = ["SQL", "Python", "JavaScript", "TypeScript", "Java", "C#", "PowerShell", "Bash", "JSON", "XML", "HTML", "CSS", "YAML", "Metin"];
+const COLORS = ["#2457C5", "#C2610C", "#0F7B6C", "#7C3AED", "#B42318", "#A16207", "#0E7490", "#6B7280"];
+const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+const LS_DATA = "isTakip.data.v1", LS_UI = "isTakip.ui.v1";
+const FS_OK = "showSaveFilePicker" in window;
+
+/* ---------------------------------------------------------------- yardımcılar */
+const $ = (s) => document.querySelector(s);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const lower = (s) => String(s || "").toLocaleLowerCase("tr");
+const pad = (n) => String(n).padStart(2, "0");
+const todayISO = () => { const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+const nowStamp = () => { const d = new Date(); return todayISO() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+const fmtDate = (iso, year) => { if (!iso) return ""; const [y, m, d] = iso.slice(0, 10).split("-"); return Number(d) + " " + MONTHS[Number(m) - 1] + (year ? " " + y : ""); };
+const fmtStamp = (s) => s ? fmtDate(s, true) + (s.length > 10 ? " " + s.slice(11, 16) : "") : "";
+const isDone = (t) => t.status === "Tamamlandı";
+const isLate = (t) => !isDone(t) && t.due && t.due < todayISO();
+const ICON = {
+  pen: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
+  trash: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  x: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  chev: '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
+  note: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 4h14v12l-4 4H5z"/><path d="M9 9h6M9 13h4"/></svg>',
+  code: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg>',
+  flag: '<svg width="14" height="14" viewBox="0 0 24 24" fill="#B42318" role="img" aria-label="Yüksek öncelik"><path d="M5 3v18h2v-7h11l-2-4 2-4H7V3z"/></svg>'
+};
+
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+/* ---------------------------------------------------------------- veri */
+function emptyData() {
+  return { app: "is-takip", version: 1, groups: [{ id: uid(), name: "Genel", color: "#6B7280" }], tasks: [] };
+}
+function normalize(d) {
+  if (!d || !Array.isArray(d.groups) || !Array.isArray(d.tasks)) throw new Error("Geçersiz veri dosyası");
+  d.app = "is-takip"; d.version = 1;
+  d.groups.forEach((g) => { g.id = g.id || uid(); g.name = g.name || "Grup"; g.color = g.color || "#6B7280"; });
+  if (!d.groups.length) d.groups.push({ id: uid(), name: "Genel", color: "#6B7280" });
+  d.tasks.forEach((t) => {
+    t.id = t.id || uid(); t.notes = t.notes || []; t.codes = t.codes || [];
+    t.status = STATUSES.includes(t.status) ? t.status : "Yapılacak";
+    t.priority = PRIORITIES.includes(t.priority) ? t.priority : "Orta";
+    if (!d.groups.some((g) => g.id === t.groupId)) t.groupId = d.groups[0].id;
+  });
+  return d;
+}
+
+let data;
+try { data = normalize(JSON.parse(localStorage.getItem(LS_DATA))); } catch (e) { data = emptyData(); }
+
+let ui = { filter: "all", selected: null, collapsed: {}, q: "" };
+try { Object.assign(ui, JSON.parse(localStorage.getItem(LS_UI)) || {}); } catch (e) {}
+ui.q = "";
+
+const findTask = (id) => data.tasks.find((t) => t.id === id);
+const findGroup = (id) => data.groups.find((g) => g.id === id);
+
+/* ---------------------------------------------------------------- kayıt: localStorage + JSON dosyası */
+let fileHandle = null, fileState = "none", lastSaved = "", writeTimer = null, writing = Promise.resolve();
+// fileState: none | connected | needs-permission | error
+
+const idb = {
+  open() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open("is-takip", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("kv");
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+  },
+  async get(k) { try { const db = await this.open(); return await new Promise((res) => { const r = db.transaction("kv").objectStore("kv").get(k); r.onsuccess = () => res(r.result); r.onerror = () => res(undefined); }); } catch (e) { return undefined; } },
+  async set(k, v) { try { const db = await this.open(); await new Promise((res) => { const tx = db.transaction("kv", "readwrite"); tx.objectStore("kv").put(v, k); tx.oncomplete = res; tx.onerror = res; }); } catch (e) {} },
+  async del(k) { try { const db = await this.open(); await new Promise((res) => { const tx = db.transaction("kv", "readwrite"); tx.objectStore("kv").delete(k); tx.oncomplete = res; tx.onerror = res; }); } catch (e) {} }
+};
+
+function persist() {
+  try { localStorage.setItem(LS_DATA, JSON.stringify(data)); } catch (e) { toast("Tarayıcı belleğine yazılamadı"); }
+  if (fileHandle && fileState === "connected") {
+    clearTimeout(writeTimer);
+    writeTimer = setTimeout(writeFile, 250);
+  }
+  lastSaved = new Date();
+  renderSaveState();
+}
+function writeFile() {
+  writing = writing.then(async () => {
+    try {
+      const w = await fileHandle.createWritable();
+      await w.write(JSON.stringify(data, null, 2));
+      await w.close();
+      fileState = "connected";
+    } catch (e) {
+      console.error(e); fileState = "error";
+    }
+    renderSaveState(); renderBanner();
+  });
+  return writing;
+}
+function saveUI() { try { localStorage.setItem(LS_UI, JSON.stringify({ filter: ui.filter, selected: ui.selected, collapsed: ui.collapsed })); } catch (e) {} }
+
+async function connectFile(handle, mode) {
+  // mode: "write" → mevcut veriyi dosyaya yaz; "read" → dosyadan oku
+  if (mode === "read") {
+    const f = await handle.getFile();
+    const text = await f.text();
+    const d = text.trim() ? normalize(JSON.parse(text)) : emptyData();
+    data = d;
+  }
+  fileHandle = handle; fileState = "connected";
+  await idb.set("handle", handle);
+  persist();
+  if (mode === "write") await writeFile();
+  render();
+}
+async function restoreHandle() {
+  if (!FS_OK) return;
+  const h = await idb.get("handle");
+  if (!h) return;
+  fileHandle = h;
+  try {
+    const p = await h.queryPermission({ mode: "readwrite" });
+    if (p === "granted") { await connectFile(h, "read"); return; }
+  } catch (e) {}
+  fileState = "needs-permission";
+  render();
+}
+async function reconnect() {
+  try {
+    const p = await fileHandle.requestPermission({ mode: "readwrite" });
+    if (p !== "granted") { toast("İzin verilmedi"); return; }
+    await connectFile(fileHandle, "read");
+    toast("Veri dosyasına bağlanıldı");
+  } catch (e) { console.error(e); toast("Dosya açılamadı: " + e.message); }
+}
+const PICK_OPTS = { types: [{ description: "İş Takip verisi", accept: { "application/json": [".json"] } }] };
+
+/* ---------------------------------------------------------------- görünüm hesaplama */
+function matchesQuery(t) {
+  if (!ui.q) return true;
+  const q = lower(ui.q);
+  return [t.title, t.desc, ...t.notes.map((n) => n.text), ...t.codes.map((c) => c.title + " " + c.code)].some((s) => lower(s).includes(q));
+}
+function matchesFilter(t) {
+  const f = ui.filter;
+  if (f === "all") return true;
+  if (f === "open") return !isDone(t);
+  if (f === "late") return isLate(t);
+  if (f === "done") return isDone(t);
+  return t.groupId === f;
+}
+const sortTasks = (a, b) => (isDone(a) - isDone(b)) || (a.due || "9999").localeCompare(b.due || "9999") || PRIORITIES.indexOf(b.priority) - PRIORITIES.indexOf(a.priority) || a.title.localeCompare(b.title, "tr");
+
+/* ---------------------------------------------------------------- render */
+function render() { renderBanner(); renderSide(); renderList(); renderDetail(); renderSaveState(); }
+
+function renderSaveState() {
+  const el = $("#saveState");
+  let cls = "", txt;
+  if (fileState === "connected") { cls = "ok"; txt = "Dosyaya kaydediliyor: " + fileHandle.name; }
+  else if (fileState === "needs-permission") { cls = "warn"; txt = "Dosya bağlantısı bekliyor"; }
+  else if (fileState === "error") { cls = "warn"; txt = "Dosyaya yazılamadı"; }
+  else { txt = "Yalnızca tarayıcıda"; }
+  if (lastSaved && fileState !== "needs-permission") txt += " · " + pad(lastSaved.getHours()) + ":" + pad(lastSaved.getMinutes());
+  el.innerHTML = '<span class="dot ' + cls + '"></span><span>' + esc(txt) + "</span>";
+}
+
+function renderBanner() {
+  const b = $("#banner");
+  if (fileState === "needs-permission") {
+    b.innerHTML = '<div class="banner"><span>Veri dosyası <b>' + esc(fileHandle.name) + '</b> bağlı. Kaldığınız yerden devam etmek için erişime izin verin.</span><button class="btn" data-act="reconnect">Dosyaya bağlan</button></div>';
+  } else if (fileState === "error") {
+    b.innerHTML = '<div class="banner"><span>Değişiklikler veri dosyasına yazılamadı (tarayıcıda saklanıyor). Dosya taşınmış veya başka bir programda açık olabilir.</span><button class="btn" data-act="retry-write">Tekrar dene</button><button class="btn" data-act="file-menu">Veri dosyası…</button></div>';
+  } else if (fileState === "none" && FS_OK && !localStorage.getItem("isTakip.bannerHidden")) {
+    b.innerHTML = '<div class="banner"><span>Kayıtlarınız şu an yalnızca bu tarayıcıda. Kalıcı olması için bir JSON veri dosyası bağlayın.</span><button class="btn" data-act="file-new">Veri dosyası oluştur</button><button class="btn" data-act="file-open">Mevcut dosyayı aç</button><button class="link" data-act="hide-banner">Şimdilik gizle</button></div>';
+  } else b.innerHTML = "";
+}
+
+function renderSide() {
+  const open = data.tasks.filter((t) => !isDone(t));
+  const views = [
+    ["all", "Tüm işler", data.tasks.length],
+    ["open", "Açık işler", open.length],
+    ["late", "Süresi geçen", data.tasks.filter(isLate).length],
+    ["done", "Tamamlanan", data.tasks.length - open.length]
+  ];
+  let h = '<div class="side-list"><h4>GÖRÜNÜM</h4>';
+  for (const [id, name, cnt] of views)
+    h += '<button class="nav-item' + (ui.filter === id ? " active" : "") + '" data-act="filter" data-id="' + id + '"' + (ui.filter === id ? ' aria-current="true"' : "") + '><span class="name">' + name + '</span><span class="cnt">' + cnt + "</span></button>";
+  h += '</div><div class="side-list"><h4>GRUPLAR</h4>';
+  for (const g of data.groups) {
+    const cnt = open.filter((t) => t.groupId === g.id).length;
+    h += '<button class="nav-item' + (ui.filter === g.id ? " active" : "") + '" data-act="filter" data-id="' + g.id + '"><span class="swatch" style="background:' + esc(g.color) + '"></span><span class="name">' + esc(g.name) + '</span><span class="cnt">' + cnt + "</span></button>";
+  }
+  h += '<button class="nav-item nav-add" data-act="new-group">+ Yeni grup</button></div>';
+  $("#side").innerHTML = h;
+}
+
+function renderList() {
+  const f = ui.filter;
+  const titles = { all: "Tüm işler", open: "Açık işler", late: "Süresi geçen işler", done: "Tamamlanan işler" };
+  const g0 = findGroup(f);
+  const title = titles[f] || (g0 ? g0.name : "Tüm işler");
+  const visible = data.tasks.filter((t) => matchesFilter(t) && matchesQuery(t));
+  const openCnt = visible.filter((t) => !isDone(t)).length;
+  let h = '<div class="view-head"><h1>' + esc(title) + "</h1><span>" + (ui.q ? visible.length + ' sonuç · "' + esc(ui.q) + '"' : openCnt + " açık iş") + "</span></div>";
+  const showEmptyGroups = !ui.q && (f === "all" || f === "open" || g0);
+  let any = false;
+  for (const g of data.groups) {
+    if (g0 && g.id !== g0.id) continue;
+    const list = visible.filter((t) => t.groupId === g.id).sort(sortTasks);
+    if (!list.length && !showEmptyGroups) continue;
+    any = true;
+    const closed = !!ui.collapsed[g.id] && !ui.q;
+    h += '<section class="group' + (closed ? " closed" : "") + '"><div class="group-head">' +
+      '<button class="icon-btn ghost" data-act="collapse" data-id="' + g.id + '" aria-expanded="' + !closed + '" aria-label="' + esc(g.name) + ' grubunu aç veya kapat">' + ICON.chev + "</button>" +
+      '<span class="swatch" style="background:' + esc(g.color) + '"></span><span class="gname">' + esc(g.name) + '</span><span class="pill">' + list.length + "</span>" +
+      '<div class="group-tools"><button class="link" data-act="new-task" data-group="' + g.id + '">+ İş ekle</button>' +
+      '<button class="icon-btn ghost" data-act="edit-group" data-id="' + g.id + '" aria-label="Grubu düzenle">' + ICON.pen + "</button></div></div><div class=\"rows\">";
+    if (!list.length) h += '<div class="rows-empty">Bu grupta iş yok.</div>';
+    for (const t of list) {
+      const late = isLate(t);
+      h += '<div class="row' + (isDone(t) ? " done" : "") + (ui.selected === t.id ? " sel" : "") + '">' +
+        '<input type="checkbox" data-act="toggle" data-id="' + t.id + '"' + (isDone(t) ? " checked" : "") + ' aria-label="' + esc(t.title) + ' tamamlandı">' +
+        '<button class="title" data-act="select" data-id="' + t.id + '">' + esc(t.title) + "</button>" +
+        (t.priority === "Yüksek" && !isDone(t) ? ICON.flag : "") +
+        (t.notes.length ? '<span class="badge" title="Dipnot">' + ICON.note + t.notes.length + "</span>" : "") +
+        (t.codes.length ? '<span class="badge" title="Kod">' + ICON.code + t.codes.length + "</span>" : "") +
+        '<span class="chip ' + STATUS_CLS[t.status] + '">' + t.status + "</span>" +
+        '<span class="due' + (late ? " late" : "") + '"' + (late ? ' title="Süresi geçti"' : "") + ">" + fmtDate(t.due) + "</span></div>";
+    }
+    h += "</div></section>";
+  }
+  if (!any) h += '<div class="empty">' + (ui.q ? "Aramaya uyan iş bulunamadı." : "Bu görünümde iş yok.") + "</div>";
+  $("#list").innerHTML = h;
+}
+
+function renderDesc(text) {
+  if (!text) return '<p class="desc none">Açıklama yok.</p>';
+  return '<p class="desc">' + esc(text).replace(/\[(\d{1,3})\]/g, '<span class="fnref" title="Dipnot $1">$1</span>') + "</p>";
+}
+
+function renderDetail() {
+  const el = $("#detail");
+  const t = findTask(ui.selected);
+  if (!t) {
+    el.innerHTML = '<div class="detail-empty"><p>Detayını görmek için bir iş seçin.</p><button class="btn primary" data-act="new-task">+ Yeni iş</button></div>';
+    return;
+  }
+  const g = findGroup(t.groupId);
+  let due = t.due ? fmtDate(t.due, true) : "—";
+  if (t.due && !isDone(t)) {
+    const diff = Math.round((new Date(t.due) - new Date(todayISO())) / 86400000);
+    due += diff < 0 ? " · " + -diff + " gün gecikti" : diff === 0 ? " · bugün" : " · " + diff + " gün kaldı";
+  }
+  let h = '<div class="d-top"><span class="swatch" style="background:' + esc(g.color) + '"></span><span class="grp">' + esc(g.name) + "</span>" +
+    '<div class="tools"><button class="icon-btn" data-act="edit-task" data-id="' + t.id + '" aria-label="Düzenle">' + ICON.pen + "</button>" +
+    '<button class="icon-btn danger" data-act="delete-task" data-id="' + t.id + '" aria-label="Sil">' + ICON.trash + "</button></div></div>" +
+    "<h2>" + esc(t.title) + "</h2>" +
+    '<div class="meta"><div><span class="lbl">Durum</span><span><select aria-label="Durum" data-act="set-status" data-id="' + t.id + '" style="height:32px;border:1px solid #D5D9E0;border-radius:8px;padding:0 6px;background:#fff">' +
+    STATUSES.map((s) => "<option" + (s === t.status ? " selected" : "") + ">" + s + "</option>").join("") + "</select></span></div>" +
+    '<div><span class="lbl">Öncelik</span><span>' + t.priority + "</span></div>" +
+    '<div><span class="lbl">Başlangıç</span><span>' + (t.start ? fmtDate(t.start, true) : "—") + "</span></div>" +
+    '<div><span class="lbl">Son tarih</span><span class="' + (isLate(t) ? "late-text" : "") + '">' + due + "</span></div></div>" +
+    '<div class="sec"><div class="sec-head"><h3>Açıklama</h3></div>' + renderDesc(t.desc) + "</div>";
+
+  // dipnotlar
+  h += '<div class="sec"><div class="sec-head"><h3>Dipnotlar</h3><span class="pill">' + t.notes.length + "</span></div>";
+  t.notes.forEach((n, i) => {
+    h += '<div class="note"><span class="num">' + (i + 1) + '</span><div class="body"><span>' + esc(n.text) + '</span><span class="date">' + fmtStamp(n.date) + "</span></div>" +
+      '<button class="icon-btn ghost" data-act="del-note" data-id="' + n.id + '" aria-label="Dipnotu sil">' + ICON.x + "</button></div>";
+  });
+  h += '<div class="add-row"><label for="noteInput" class="sr">Yeni dipnot</label><textarea id="noteInput" rows="1" placeholder="Dipnot ekle…"></textarea><button class="btn" data-act="add-note">Ekle</button></div>' +
+    '<div class="hint">Enter ile ekle, Shift+Enter ile alt satır. Açıklamada [' + (t.notes.length + 1) + "] yazarak atıf yapabilirsiniz.</div></div>";
+
+  // kodlar
+  h += '<div class="sec"><div class="sec-head"><h3>Kod parçacıkları</h3><span class="pill">' + t.codes.length + '</span><button class="link" data-act="new-code">+ Kod ekle</button></div>';
+  if (!t.codes.length) h += '<div class="placeholder">Henüz kod eklenmedi.</div>';
+  for (const c of t.codes) {
+    h += '<div class="code"><div class="code-head"><span class="t">' + esc(c.title) + '</span><span class="lang">' + esc(c.lang) + "</span>" +
+      '<button data-act="copy-code" data-id="' + c.id + '">Kopyala</button><button data-act="edit-code" data-id="' + c.id + '">Düzenle</button></div>' +
+      "<pre>" + esc(c.code) + "</pre></div>";
+  }
+  h += "</div>";
+  h += '<div class="stamp">Oluşturma: ' + fmtStamp(t.created) + (t.updated ? " · Son güncelleme: " + fmtStamp(t.updated) : "") + "</div>";
+  el.innerHTML = h;
+
+  const ni = $("#noteInput");
+  ni.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addNote(); } });
+  ni.addEventListener("input", () => { ni.style.height = "40px"; ni.style.height = Math.min(ni.scrollHeight + 2, 200) + "px"; });
+}
+
+/* ---------------------------------------------------------------- işlemler */
+function touch(t) { t.updated = nowStamp(); }
+function commit() { persist(); saveUI(); render(); }
+
+function addNote() {
+  const t = findTask(ui.selected); const ni = $("#noteInput");
+  const text = ni.value.trim(); if (!t || !text) return;
+  t.notes.push({ id: uid(), text, date: nowStamp() }); touch(t); commit();
+  $("#noteInput").focus();
+}
+
+// iş diyaloğu
+let editingTaskId = null;
+function fillSelect(sel, items, value) { sel.innerHTML = items.map((it) => { const [v, l] = Array.isArray(it) ? it : [it, it]; return '<option value="' + esc(v) + '"' + (v === value ? " selected" : "") + ">" + esc(l) + "</option>"; }).join(""); }
+function openTask(id, groupId) {
+  editingTaskId = id || null;
+  const t = id ? findTask(id) : null;
+  $("#dlgTaskTitle").textContent = t ? "İşi düzenle" : "Yeni iş";
+  $("#tTitle").value = t ? t.title : "";
+  const defGroup = t ? t.groupId : (groupId || (findGroup(ui.filter) ? ui.filter : data.groups[0].id));
+  fillSelect($("#tGroup"), data.groups.map((g) => [g.id, g.name]), defGroup);
+  fillSelect($("#tStatus"), STATUSES, t ? t.status : "Yapılacak");
+  fillSelect($("#tPriority"), PRIORITIES, t ? t.priority : "Orta");
+  $("#tStart").value = t ? t.start || "" : todayISO();
+  $("#tDue").value = t ? t.due || "" : "";
+  $("#tDesc").value = t ? t.desc || "" : "";
+  $("#tDelete").hidden = !t;
+  $("#dlgTask").showModal(); $("#tTitle").focus();
+}
+$("#fTask").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const title = $("#tTitle").value.trim(); if (!title) return;
+  let t = editingTaskId && findTask(editingTaskId);
+  if (!t) { t = { id: uid(), notes: [], codes: [], created: nowStamp() }; data.tasks.push(t); }
+  Object.assign(t, { title, groupId: $("#tGroup").value, status: $("#tStatus").value, priority: $("#tPriority").value, start: $("#tStart").value, due: $("#tDue").value, desc: $("#tDesc").value.trim() });
+  touch(t); ui.selected = t.id;
+  if (ui.collapsed[t.groupId]) ui.collapsed[t.groupId] = false;
+  $("#dlgTask").close(); commit();
+});
+$("#tDelete").addEventListener("click", () => { if (deleteTask(editingTaskId)) $("#dlgTask").close(); });
+function deleteTask(id) {
+  const t = findTask(id); if (!t) return false;
+  if (!confirm('"' + t.title + '" silinsin mi? Dipnotları ve kodları da silinir.')) return false;
+  data.tasks = data.tasks.filter((x) => x.id !== id);
+  if (ui.selected === id) ui.selected = null;
+  commit(); return true;
+}
+
+// grup diyaloğu
+let editingGroupId = null;
+function openGroup(id) {
+  editingGroupId = id || null;
+  const g = id ? findGroup(id) : null;
+  $("#dlgGroupTitle").textContent = g ? "Grubu düzenle" : "Yeni grup";
+  $("#gName").value = g ? g.name : "";
+  const used = data.groups.map((x) => x.color);
+  const color = g ? g.color : (COLORS.find((c) => !used.includes(c)) || COLORS[0]);
+  $("#gColors").innerHTML = COLORS.map((c, i) => '<label><input type="radio" name="gcolor" value="' + c + '"' + (c === color ? " checked" : "") + ' aria-label="Renk ' + (i + 1) + '"><span style="background:' + c + '"></span></label>').join("");
+  $("#gDelete").hidden = !g;
+  $("#dlgGroup").showModal(); $("#gName").focus();
+}
+$("#fGroup").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const name = $("#gName").value.trim(); if (!name) return;
+  const color = (document.querySelector('input[name="gcolor"]:checked') || {}).value || COLORS[0];
+  let g = editingGroupId && findGroup(editingGroupId);
+  if (g) Object.assign(g, { name, color });
+  else { g = { id: uid(), name, color }; data.groups.push(g); ui.filter = g.id; }
+  $("#dlgGroup").close(); commit();
+});
+$("#gDelete").addEventListener("click", () => {
+  const g = findGroup(editingGroupId); if (!g) return;
+  if (data.groups.length === 1) { alert("Son grup silinemez."); return; }
+  const n = data.tasks.filter((t) => t.groupId === g.id).length;
+  const target = data.groups.find((x) => x.id !== g.id);
+  const msg = n ? '"' + g.name + '" grubu silinsin mi? İçindeki ' + n + ' iş "' + target.name + '" grubuna taşınacak.' : '"' + g.name + '" grubu silinsin mi?';
+  if (!confirm(msg)) return;
+  data.tasks.forEach((t) => { if (t.groupId === g.id) t.groupId = target.id; });
+  data.groups = data.groups.filter((x) => x.id !== g.id);
+  if (ui.filter === g.id) ui.filter = "all";
+  $("#dlgGroup").close(); commit();
+});
+
+// kod diyaloğu
+let editingCodeId = null;
+function openCode(id) {
+  const t = findTask(ui.selected); if (!t) return;
+  editingCodeId = id || null;
+  const c = id ? t.codes.find((x) => x.id === id) : null;
+  $("#dlgCodeTitle").textContent = c ? "Kodu düzenle" : "Kod parçacığı ekle";
+  $("#cTitle").value = c ? c.title : "";
+  fillSelect($("#cLang"), LANGS, c ? c.lang : (localStorage.getItem("isTakip.lastLang") || "SQL"));
+  $("#cCode").value = c ? c.code : "";
+  $("#cDelete").hidden = !c;
+  $("#dlgCode").showModal(); (c ? $("#cCode") : $("#cTitle")).focus();
+}
+$("#cCode").addEventListener("keydown", (e) => {
+  if (e.key === "Tab" && !e.shiftKey) {
+    e.preventDefault();
+    const ta = e.target, s = ta.selectionStart, en = ta.selectionEnd;
+    ta.setRangeText("    ", s, en, "end");
+  }
+});
+$("#fCode").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const t = findTask(ui.selected); if (!t) return;
+  const title = $("#cTitle").value.trim(), code = $("#cCode").value.replace(/\s+$/, "");
+  if (!title || !code) return;
+  const lang = $("#cLang").value; localStorage.setItem("isTakip.lastLang", lang);
+  let c = editingCodeId && t.codes.find((x) => x.id === editingCodeId);
+  if (c) Object.assign(c, { title, lang, code }); else t.codes.push({ id: uid(), title, lang, code });
+  touch(t); $("#dlgCode").close(); commit();
+});
+$("#cDelete").addEventListener("click", () => {
+  const t = findTask(ui.selected); if (!t) return;
+  if (!confirm("Bu kod parçacığı silinsin mi?")) return;
+  t.codes = t.codes.filter((x) => x.id !== editingCodeId); touch(t);
+  $("#dlgCode").close(); commit();
+});
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch (e) {
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand("copy"); } catch (e2) {}
+    ta.remove(); return ok;
+  }
+}
+
+// dosya menüsü
+function openFileMenu() {
+  $("#fileCur").innerHTML = fileHandle
+    ? "Bağlı dosya: <b>" + esc(fileHandle.name) + "</b>" + (fileState === "connected" ? " — değişiklikler otomatik kaydediliyor." : " — bağlantı bekliyor.")
+    : "Bağlı dosya yok. Kayıtlar yalnızca bu tarayıcıda tutuluyor.";
+  $("#fileOpts").hidden = !FS_OK; $("#fsNote").hidden = FS_OK;
+  $("#btnDisconnect").hidden = !fileHandle;
+  $("#dlgFile").showModal();
+}
+async function fileNew() {
+  try {
+    const h = await window.showSaveFilePicker({ suggestedName: "is_takip_veri.json", ...PICK_OPTS });
+    await connectFile(h, "write");
+    $("#dlgFile").open && $("#dlgFile").close();
+    toast("Veri dosyası oluşturuldu: " + h.name);
+  } catch (e) { if (e.name !== "AbortError") toast("Dosya oluşturulamadı: " + e.message); }
+}
+async function fileOpen() {
+  try {
+    const [h] = await window.showOpenFilePicker({ ...PICK_OPTS, multiple: false });
+    const p = await h.requestPermission({ mode: "readwrite" });
+    if (p !== "granted") { toast("Yazma izni verilmedi"); return; }
+    if (data.tasks.length && !confirm("Seçilen dosyadaki veriler açılacak; tarayıcıdaki mevcut kayıtların yerine geçecek. Devam edilsin mi?")) return;
+    await connectFile(h, "read");
+    ui.selected = null; ui.filter = "all"; saveUI(); render();
+    $("#dlgFile").open && $("#dlgFile").close();
+    toast("Açıldı: " + h.name);
+  } catch (e) { if (e.name !== "AbortError") toast("Dosya açılamadı: " + e.message); }
+}
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = "is_takip_yedek_" + todayISO() + ".json"; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+$("#importInput").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    const d = normalize(JSON.parse(await f.text()));
+    if (!confirm(d.tasks.length + " iş ve " + d.groups.length + " grup yüklenecek; mevcut verilerin yerine geçecek. Devam edilsin mi?")) return;
+    data = d; ui.selected = null; ui.filter = "all";
+    $("#dlgFile").open && $("#dlgFile").close();
+    commit(); toast("Yedek yüklendi");
+  } catch (err) { alert("Dosya okunamadı: " + err.message); }
+});
+
+/* ---------------------------------------------------------------- olaylar */
+document.addEventListener("click", async (e) => {
+  if (e.target.closest("[data-close]")) { e.target.closest("dialog").close(); return; }
+  const el = e.target.closest("[data-act]"); if (!el || el.tagName === "SELECT" || el.type === "checkbox") return;
+  const id = el.dataset.id, act = el.dataset.act;
+  switch (act) {
+    case "filter": ui.filter = id; saveUI(); render(); break;
+    case "collapse": ui.collapsed[id] = !ui.collapsed[id]; saveUI(); renderList(); break;
+    case "select": ui.selected = id; saveUI(); renderList(); renderDetail(); if (window.innerWidth < 900) $("#detail").scrollIntoView({ behavior: "smooth" }); break;
+    case "new-task": openTask(null, el.dataset.group); break;
+    case "edit-task": openTask(id); break;
+    case "delete-task": deleteTask(id); break;
+    case "new-group": openGroup(null); break;
+    case "edit-group": openGroup(id); break;
+    case "add-note": addNote(); break;
+    case "del-note": {
+      const t = findTask(ui.selected);
+      if (t && confirm("Bu dipnot silinsin mi?")) { t.notes = t.notes.filter((n) => n.id !== id); touch(t); commit(); }
+      break;
+    }
+    case "new-code": openCode(null); break;
+    case "edit-code": openCode(id); break;
+    case "copy-code": {
+      const t = findTask(ui.selected); const c = t && t.codes.find((x) => x.id === id);
+      if (c && await copyText(c.code)) { el.textContent = "Kopyalandı"; setTimeout(() => { el.textContent = "Kopyala"; }, 1500); }
+      break;
+    }
+    case "file-menu": openFileMenu(); break;
+    case "file-new": fileNew(); break;
+    case "file-open": fileOpen(); break;
+    case "file-disconnect":
+      fileHandle = null; fileState = "none"; await idb.del("handle");
+      $("#dlgFile").close(); render(); toast("Dosya bağlantısı kesildi"); break;
+    case "reconnect": reconnect(); break;
+    case "retry-write": fileState = "connected"; writeFile(); break;
+    case "export": exportJSON(); break;
+    case "import": $("#importInput").click(); break;
+    case "hide-banner": localStorage.setItem("isTakip.bannerHidden", "1"); renderBanner(); break;
+  }
+});
+document.addEventListener("change", (e) => {
+  const el = e.target;
+  if (el.dataset.act === "toggle") {
+    const t = findTask(el.dataset.id); if (!t) return;
+    t.status = el.checked ? "Tamamlandı" : "Yapılacak"; touch(t); commit();
+  } else if (el.dataset.act === "set-status") {
+    const t = findTask(el.dataset.id); if (!t) return;
+    t.status = el.value; touch(t); commit();
+  }
+});
+$("#q").addEventListener("input", (e) => { ui.q = e.target.value.trim(); renderList(); });
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("#q").focus(); $("#q").select(); }
+});
+window.addEventListener("beforeunload", (e) => {
+  if (writeTimer && fileState === "connected") { clearTimeout(writeTimer); writeFile(); }
+});
+// başka sekmede değişirse (dosya bağlı değilken) güncelle
+window.addEventListener("storage", (e) => {
+  if (e.key === LS_DATA && fileState !== "connected") { try { data = normalize(JSON.parse(e.newValue)); render(); } catch (err) {} }
+});
+
+/* ---------------------------------------------------------------- başlangıç */
+if (!findTask(ui.selected)) ui.selected = null;
+if (ui.filter && !["all", "open", "late", "done"].includes(ui.filter) && !findGroup(ui.filter)) ui.filter = "all";
+render();
+restoreHandle();
+</script>
+</body>
+</html>

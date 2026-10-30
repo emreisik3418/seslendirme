@@ -1,24 +1,25 @@
 # İş Takip
 
-Projeler, görevler ve notlar için basit masaüstü uygulaması (Python + Tkinter, ek paket gerektirmez).
+Projeleri gruplar halinde takip etmek, dipnot ve kod parçacığı eklemek için sunucusuz, tek dosyalık web uygulaması.
 
-## Çalıştırma
+## Kullanım
 
-```
-python is_takip.py
-```
+`is_takip.html` dosyasına çift tıklayın (Chrome veya Edge önerilir). Kurulum ve internet gerekmez.
 
-Veriler programın yanındaki `is_takip_veri.json` dosyasında tutulur; her kayıtta önceki hali `is_takip_veri.json.bak` olarak yedeklenir.
+## Kayıt
 
-## Sekmeler
+- İlk açılışta **Veri dosyası oluştur** ile bir `is_takip_veri.json` dosyası seçin; her değişiklik bu dosyaya otomatik yazılır.
+- Tarayıcı yeniden açıldığında güvenlik gereği bir kez **Dosyaya bağlan** düğmesine basmanız istenir.
+- Veriler ayrıca tarayıcıda (localStorage) yedeklenir. **Veri dosyası** menüsünden JSON yedeği indirip geri yükleyebilirsiniz.
+- Firefox dosyaya doğrudan yazmayı desteklemez; orada yalnızca tarayıcı kaydı ve JSON indirme/yükleme kullanılabilir.
 
-- **Projeler:** durum, öncelik, tarih, açıklama ve tarihli proje günlüğü (durum değişiklikleri otomatik kaydedilir)
-- **Görevler:** projeye bağlı görevler, son tarih; süresi geçenler kırmızı, çift tık ile tamamlandı
-- **Notlar:** serbest notlar, arama, Ctrl+S ile kaydetme
+## Özellikler
 
-## .exe oluşturma (isteğe bağlı)
+- Renkli gruplar; gruplar açılıp kapanabilir
+- İş: başlık, grup, durum, öncelik, başlangıç / son tarih, açıklama
+- Görünümler: Tüm işler, Açık, Süresi geçen (kırmızı), Tamamlanan
+- Dipnotlar (tarihli); açıklamada `[1]`, `[2]` ile atıf
+- Kod parçacıkları: dil etiketi, kopyalama, düzenleme
+- Başlık, açıklama, dipnot ve kod içinde arama (Ctrl+K)
 
-```
-pip install pyinstaller
-pyinstaller --onefile --noconsole is_takip.py
-```
+> Not: Veri dosyanızı (`is_takip_veri.json`) bu repoya eklemeyin; repo herkese açık.
