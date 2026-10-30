@@ -1,6 +1,6 @@
 # İş Takip
 
-Projeleri gruplar halinde takip etmek, dipnot ve kod parçacığı eklemek için sunucusuz, tek dosyalık web uygulaması.
+İşleri ve mevcut uygulamaları gruplar halinde takip etmek, dipnot ve kod parçacığı eklemek için sunucusuz, tek dosyalık web uygulaması.
 
 ## Kullanım
 
@@ -15,11 +15,14 @@ Projeleri gruplar halinde takip etmek, dipnot ve kod parçacığı eklemek için
 
 ## Özellikler
 
+İki bölüm vardır: **İşler** ve **Uygulamalar**. Her bölümün kendi grupları olur (ör. uygulamalar için Mobil, Qlik, BO).
+
 - Renkli gruplar; gruplar açılıp kapanabilir
+- Uygulama: ad, grup, durum (Canlıda / Test / Geliştirmede / Kullanım dışı), teknoloji, sürüm, sunucu/konum, sorumlu, bağlantı, açıklama
 - İş: başlık, grup, durum, öncelik, başlangıç / son tarih, açıklama
 - Görünümler: Tüm işler, Açık, Süresi geçen (kırmızı), Tamamlanan
-- Dipnotlar (tarihli); açıklamada `[1]`, `[2]` ile atıf
+- İşlerde ve uygulamalarda dipnotlar (tarihli); açıklamada `[1]`, `[2]` ile atıf
 - Kod parçacıkları: dil etiketi, kopyalama, düzenleme
-- Başlık, açıklama, dipnot ve kod içinde arama (Ctrl+K)
+- Başlık, bilgi alanları, açıklama, dipnot ve kod içinde arama (Ctrl+K)
 
 > Not: Veri dosyanızı (`is_takip_veri.json`) bu repoya eklemeyin; repo herkese açık.

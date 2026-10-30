@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>İş Takip</title>
 <!--
-  İş Takip — tek dosyalık, sunucusuz iş takip uygulaması.
+  İş Takip — tek dosyalık, sunucusuz iş ve uygulama takip aracı.
   Kullanım: Dosyaya çift tıklayın (Chrome veya Edge önerilir).
   Kayıt: "Veri dosyası" menüsünden bir JSON dosyası bağlayın; her değişiklik o dosyaya otomatik yazılır.
   Dosya bağlı değilken veriler tarayıcıda (localStorage) tutulur.
@@ -157,6 +157,15 @@ dialog h3{margin:0 0 4px;font-size:17px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1B1F24;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
 .toast.show{opacity:1}
+.tabs{display:flex;gap:4px;padding:3px;background:#EEF0F3;border-radius:10px}
+.tab{height:36px;padding:0 14px;border:0;border-radius:8px;background:transparent;color:var(--ink2);font-weight:500;display:flex;align-items:center;gap:8px}
+.tab:hover{color:var(--ink)}
+.tab[aria-pressed=true]{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(15,20,30,.12)}
+.tab .cnt{font-size:12px;color:var(--muted);font-weight:400}
+.tag{font-size:12px;color:var(--ink2);background:#F3F4F6;border:1px solid var(--line);border-radius:6px;padding:1px 7px;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis}
+.ver{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap}
+.meta a{color:#1D4ED8;word-break:break-all}
+.meta .val{word-wrap:break-word}
 @media (max-width: 720px){ aside.detail{border-left:0;border-top:1px solid var(--line)} header{padding:12px 16px;position:static} main{padding:16px} .grid2,.meta{grid-template-columns:1fr} }
 </style>
 </head>
@@ -167,15 +176,16 @@ dialog h3{margin:0 0 4px;font-size:17px}
       <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="7" fill="var(--accent)"/><path d="M8 14.5l4 4 8-9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       İş Takip
     </div>
+    <div class="tabs" id="tabs"></div>
     <div class="search">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6472" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-      <input id="q" type="search" aria-label="Ara" placeholder="İş, dipnot veya kod içinde ara…  (Ctrl+K)">
+      <input id="q" type="search" aria-label="Ara" placeholder="Ara…  (Ctrl+K)">
     </div>
     <div class="hdr-right">
       <span class="save-state" id="saveState"><span class="dot"></span><span>—</span></span>
       <button class="btn" data-act="file-menu">Veri dosyası</button>
       <button class="btn" data-act="new-group">+ Grup</button>
-      <button class="btn primary" data-act="new-task">+ Yeni iş</button>
+      <button class="btn primary" data-act="new-item" id="btnNew">+ Yeni iş</button>
     </div>
   </header>
   <div id="banner"></div>
@@ -207,6 +217,31 @@ dialog h3{margin:0 0 4px;font-size:17px}
     </div>
   </form>
 </dialog>
+
+<!-- Uygulama diyaloğu -->
+<dialog id="dlgApp">
+  <form method="dialog" id="fApp">
+    <h3 id="dlgAppTitle">Yeni uygulama</h3>
+    <div class="field"><label for="aName">Uygulama adı</label><input id="aName" required maxlength="200"></div>
+    <div class="grid2">
+      <div class="field"><label for="aGroup">Grup</label><select id="aGroup"></select></div>
+      <div class="field"><label for="aStatus">Durum</label><select id="aStatus"></select></div>
+      <div class="field"><label for="aTech">Teknoloji</label><input id="aTech" list="techList" maxlength="80" placeholder="ör. Qlik Sense, Flutter, BO 4.3"></div>
+      <div class="field"><label for="aVersion">Sürüm</label><input id="aVersion" maxlength="40" placeholder="ör. 2.1"></div>
+      <div class="field"><label for="aLocation">Sunucu / konum</label><input id="aLocation" maxlength="200" placeholder="ör. QLIKPRD01, \\paylasim\uygulama"></div>
+      <div class="field"><label for="aOwner">Sorumlu / kullanıcılar</label><input id="aOwner" maxlength="200" placeholder="ör. Satış ekibi"></div>
+    </div>
+    <div class="field"><label for="aUrl">Bağlantı (adres)</label><input id="aUrl" maxlength="500" placeholder="https://…"></div>
+    <div class="field"><label for="aDesc">Uygulama hakkında</label><textarea id="aDesc" placeholder="Ne işe yarar, veri kaynakları, yenileme zamanı… Dipnota atıf için [1], [2] yazabilirsiniz."></textarea></div>
+    <div class="dlg-actions">
+      <button type="button" class="btn danger" id="aDelete">Sil</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" data-close>Vazgeç</button>
+      <button type="submit" class="btn primary">Kaydet</button>
+    </div>
+  </form>
+</dialog>
+<datalist id="techList"></datalist>
 
 <!-- Grup diyaloğu -->
 <dialog id="dlgGroup">
@@ -266,13 +301,23 @@ dialog h3{margin:0 0 4px;font-size:17px}
 "use strict";
 /* ---------------------------------------------------------------- sabitler */
 const STATUSES = ["Yapılacak", "Devam Ediyor", "Beklemede", "Tamamlandı"];
-const STATUS_CLS = { "Yapılacak": "s-todo", "Devam Ediyor": "s-doing", "Beklemede": "s-wait", "Tamamlandı": "s-done" };
+const APP_STATUSES = ["Canlıda", "Test", "Geliştirmede", "Kullanım dışı"];
+const STATUS_CLS = {
+  "Yapılacak": "s-todo", "Devam Ediyor": "s-doing", "Beklemede": "s-wait", "Tamamlandı": "s-done",
+  "Canlıda": "s-done", "Test": "s-wait", "Geliştirmede": "s-doing", "Kullanım dışı": "s-todo"
+};
 const PRIORITIES = ["Düşük", "Orta", "Yüksek"];
-const LANGS = ["SQL", "Python", "JavaScript", "TypeScript", "Java", "C#", "PowerShell", "Bash", "JSON", "XML", "HTML", "CSS", "YAML", "Metin"];
+const LANGS = ["SQL", "Python", "JavaScript", "TypeScript", "Java", "C#", "Qlik Script", "PowerShell", "Bash", "JSON", "XML", "HTML", "CSS", "YAML", "Metin"];
+const TECHS = ["Qlik Sense", "QlikView", "SAP BusinessObjects", "Web Intelligence", "Flutter", "React Native", "Android", "iOS", "Java", ".NET", "Python", "Oracle", "SQL Server"];
 const COLORS = ["#2457C5", "#C2610C", "#0F7B6C", "#7C3AED", "#B42318", "#A16207", "#0E7490", "#6B7280"];
 const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
-const LS_DATA = "isTakip.data.v1", LS_UI = "isTakip.ui.v1";
+const LS_DATA = "isTakip.data.v1", LS_UI = "isTakip.ui.v2";
 const FS_OK = "showSaveFilePicker" in window;
+// iki bölüm: işler ve uygulamalar
+const MODES = {
+  tasks: { kind: "task", label: "İşler", one: "iş", newLabel: "+ Yeni iş", addLabel: "+ İş ekle", empty: "Bu grupta iş yok." },
+  apps: { kind: "app", label: "Uygulamalar", one: "uygulama", newLabel: "+ Yeni uygulama", addLabel: "+ Uygulama ekle", empty: "Bu grupta uygulama yok." }
+};
 
 /* ---------------------------------------------------------------- yardımcılar */
 const $ = (s) => document.querySelector(s);
@@ -286,6 +331,7 @@ const fmtDate = (iso, year) => { if (!iso) return ""; const [y, m, d] = iso.slic
 const fmtStamp = (s) => s ? fmtDate(s, true) + (s.length > 10 ? " " + s.slice(11, 16) : "") : "";
 const isDone = (t) => t.status === "Tamamlandı";
 const isLate = (t) => !isDone(t) && t.due && t.due < todayISO();
+const safeUrl = (u) => /^https?:\/\//i.test(u || "") ? u : "";
 const ICON = {
   pen: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
   trash: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
@@ -293,7 +339,9 @@ const ICON = {
   chev: '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
   note: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 4h14v12l-4 4H5z"/><path d="M9 9h6M9 13h4"/></svg>',
   code: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg>',
-  flag: '<svg width="14" height="14" viewBox="0 0 24 24" fill="#B42318" role="img" aria-label="Yüksek öncelik"><path d="M5 3v18h2v-7h11l-2-4 2-4H7V3z"/></svg>'
+  flag: '<svg width="14" height="14" viewBox="0 0 24 24" fill="#B42318" role="img" aria-label="Yüksek öncelik"><path d="M5 3v18h2v-7h11l-2-4 2-4H7V3z"/></svg>',
+  tasks: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l2 2 3-3M4 13l2 2 3-3M12 7h8M12 14h8M12 20h8"/></svg>',
+  apps: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>'
 };
 
 function toast(msg) {
@@ -302,32 +350,49 @@ function toast(msg) {
 }
 
 /* ---------------------------------------------------------------- veri */
+const defaultAppGroups = () => [
+  { id: uid(), name: "Mobil", color: "#2457C5", kind: "app" },
+  { id: uid(), name: "Qlik", color: "#0F7B6C", kind: "app" },
+  { id: uid(), name: "BO", color: "#C2610C", kind: "app" }
+];
 function emptyData() {
-  return { app: "is-takip", version: 1, groups: [{ id: uid(), name: "Genel", color: "#6B7280" }], tasks: [] };
+  return { app: "is-takip", version: 2, groups: [{ id: uid(), name: "Genel", color: "#6B7280", kind: "task" }, ...defaultAppGroups()], tasks: [], apps: [] };
 }
 function normalize(d) {
   if (!d || !Array.isArray(d.groups) || !Array.isArray(d.tasks)) throw new Error("Geçersiz veri dosyası");
-  d.app = "is-takip"; d.version = 1;
-  d.groups.forEach((g) => { g.id = g.id || uid(); g.name = g.name || "Grup"; g.color = g.color || "#6B7280"; });
-  if (!d.groups.length) d.groups.push({ id: uid(), name: "Genel", color: "#6B7280" });
-  d.tasks.forEach((t) => {
-    t.id = t.id || uid(); t.notes = t.notes || []; t.codes = t.codes || [];
-    t.status = STATUSES.includes(t.status) ? t.status : "Yapılacak";
-    t.priority = PRIORITIES.includes(t.priority) ? t.priority : "Orta";
-    if (!d.groups.some((g) => g.id === t.groupId)) t.groupId = d.groups[0].id;
+  d.app = "is-takip"; d.version = 2;
+  if (!Array.isArray(d.apps)) d.apps = [];
+  d.groups.forEach((g) => { g.id = g.id || uid(); g.name = g.name || "Grup"; g.color = g.color || "#6B7280"; g.kind = g.kind === "app" ? "app" : "task"; });
+  if (!d.groups.some((g) => g.kind === "task")) d.groups.unshift({ id: uid(), name: "Genel", color: "#6B7280", kind: "task" });
+  if (!d.groups.some((g) => g.kind === "app")) d.groups.push(...defaultAppGroups());
+  const fix = (list, kind, statuses, def) => list.forEach((x) => {
+    x.id = x.id || uid(); x.notes = x.notes || []; x.codes = x.codes || [];
+    x.status = statuses.includes(x.status) ? x.status : def;
+    const g = d.groups.find((gg) => gg.id === x.groupId);
+    if (!g || g.kind !== kind) x.groupId = d.groups.find((gg) => gg.kind === kind).id;
   });
+  fix(d.tasks, "task", STATUSES, "Yapılacak");
+  d.tasks.forEach((t) => { t.priority = PRIORITIES.includes(t.priority) ? t.priority : "Orta"; });
+  fix(d.apps, "app", APP_STATUSES, "Canlıda");
   return d;
 }
 
 let data;
 try { data = normalize(JSON.parse(localStorage.getItem(LS_DATA))); } catch (e) { data = emptyData(); }
 
-let ui = { filter: "all", selected: null, collapsed: {}, q: "" };
-try { Object.assign(ui, JSON.parse(localStorage.getItem(LS_UI)) || {}); } catch (e) {}
+let ui = { mode: "tasks", filter: { tasks: "all", apps: "all" }, selected: { tasks: null, apps: null }, collapsed: {}, q: "" };
+try {
+  const s = JSON.parse(localStorage.getItem(LS_UI));
+  if (s && s.filter && typeof s.filter === "object") Object.assign(ui, s);
+} catch (e) {}
 ui.q = "";
 
-const findTask = (id) => data.tasks.find((t) => t.id === id);
+const items = () => data[ui.mode];
+const groupsOf = (mode) => data.groups.filter((g) => g.kind === MODES[mode || ui.mode].kind);
+const findItem = (id, mode) => data[mode || ui.mode].find((x) => x.id === id);
 const findGroup = (id) => data.groups.find((g) => g.id === id);
+const curFilter = () => ui.filter[ui.mode];
+const curSelected = () => findItem(ui.selected[ui.mode]);
 
 /* ---------------------------------------------------------------- kayıt: localStorage + JSON dosyası */
 let fileHandle = null, fileState = "none", lastSaved = "", writeTimer = null, writing = Promise.resolve();
@@ -356,6 +421,7 @@ function persist() {
   renderSaveState();
 }
 function writeFile() {
+  writeTimer = null;
   writing = writing.then(async () => {
     try {
       const w = await fileHandle.createWritable();
@@ -369,15 +435,13 @@ function writeFile() {
   });
   return writing;
 }
-function saveUI() { try { localStorage.setItem(LS_UI, JSON.stringify({ filter: ui.filter, selected: ui.selected, collapsed: ui.collapsed })); } catch (e) {} }
+function saveUI() { try { localStorage.setItem(LS_UI, JSON.stringify({ mode: ui.mode, filter: ui.filter, selected: ui.selected, collapsed: ui.collapsed })); } catch (e) {} }
 
 async function connectFile(handle, mode) {
   // mode: "write" → mevcut veriyi dosyaya yaz; "read" → dosyadan oku
   if (mode === "read") {
-    const f = await handle.getFile();
-    const text = await f.text();
-    const d = text.trim() ? normalize(JSON.parse(text)) : emptyData();
-    data = d;
+    const text = await (await handle.getFile()).text();
+    data = text.trim() ? normalize(JSON.parse(text)) : emptyData();
   }
   fileHandle = handle; fileState = "connected";
   await idb.set("handle", handle);
@@ -408,23 +472,39 @@ async function reconnect() {
 const PICK_OPTS = { types: [{ description: "İş Takip verisi", accept: { "application/json": [".json"] } }] };
 
 /* ---------------------------------------------------------------- görünüm hesaplama */
-function matchesQuery(t) {
+function matchesQuery(x) {
   if (!ui.q) return true;
   const q = lower(ui.q);
-  return [t.title, t.desc, ...t.notes.map((n) => n.text), ...t.codes.map((c) => c.title + " " + c.code)].some((s) => lower(s).includes(q));
+  const fields = [x.title, x.name, x.desc, x.tech, x.version, x.location, x.owner, x.url, ...x.notes.map((n) => n.text), ...x.codes.map((c) => c.title + " " + c.code)];
+  return fields.some((s) => lower(s).includes(q));
 }
-function matchesFilter(t) {
-  const f = ui.filter;
+function matchesFilter(x) {
+  const f = curFilter();
   if (f === "all") return true;
-  if (f === "open") return !isDone(t);
-  if (f === "late") return isLate(t);
-  if (f === "done") return isDone(t);
-  return t.groupId === f;
+  if (ui.mode === "tasks") {
+    if (f === "open") return !isDone(x);
+    if (f === "late") return isLate(x);
+    if (f === "done") return isDone(x);
+  } else if (f.startsWith("st:")) return x.status === f.slice(3);
+  return x.groupId === f;
 }
 const sortTasks = (a, b) => (isDone(a) - isDone(b)) || (a.due || "9999").localeCompare(b.due || "9999") || PRIORITIES.indexOf(b.priority) - PRIORITIES.indexOf(a.priority) || a.title.localeCompare(b.title, "tr");
+const sortApps = (a, b) => (a.status === "Kullanım dışı") - (b.status === "Kullanım dışı") || a.name.localeCompare(b.name, "tr");
+const itemName = (x) => ui.mode === "tasks" ? x.title : x.name;
 
 /* ---------------------------------------------------------------- render */
-function render() { renderBanner(); renderSide(); renderList(); renderDetail(); renderSaveState(); }
+function render() { renderTabs(); renderBanner(); renderSide(); renderList(); renderDetail(); renderSaveState(); }
+
+function renderTabs() {
+  let h = "";
+  for (const m of ["tasks", "apps"]) {
+    const cnt = m === "tasks" ? data.tasks.filter((t) => !isDone(t)).length : data.apps.length;
+    h += '<button class="tab" data-act="mode" data-id="' + m + '" aria-pressed="' + (ui.mode === m) + '">' + ICON[m] + MODES[m].label + '<span class="cnt">' + cnt + "</span></button>";
+  }
+  $("#tabs").innerHTML = h;
+  $("#btnNew").textContent = MODES[ui.mode].newLabel;
+  $("#q").placeholder = ui.mode === "tasks" ? "İş, dipnot veya kod içinde ara…  (Ctrl+K)" : "Uygulama, bilgi, dipnot veya kod içinde ara…  (Ctrl+K)";
+}
 
 function renderSaveState() {
   const el = $("#saveState");
@@ -448,62 +528,77 @@ function renderBanner() {
   } else b.innerHTML = "";
 }
 
+function navBtn(id, name, cnt, color) {
+  const on = curFilter() === id;
+  return '<button class="nav-item' + (on ? " active" : "") + '" data-act="filter" data-id="' + esc(id) + '"' + (on ? ' aria-current="true"' : "") + ">" +
+    (color ? '<span class="swatch" style="background:' + esc(color) + '"></span>' : "") +
+    '<span class="name">' + esc(name) + '</span><span class="cnt">' + cnt + "</span></button>";
+}
 function renderSide() {
-  const open = data.tasks.filter((t) => !isDone(t));
-  const views = [
-    ["all", "Tüm işler", data.tasks.length],
-    ["open", "Açık işler", open.length],
-    ["late", "Süresi geçen", data.tasks.filter(isLate).length],
-    ["done", "Tamamlanan", data.tasks.length - open.length]
-  ];
-  let h = '<div class="side-list"><h4>GÖRÜNÜM</h4>';
-  for (const [id, name, cnt] of views)
-    h += '<button class="nav-item' + (ui.filter === id ? " active" : "") + '" data-act="filter" data-id="' + id + '"' + (ui.filter === id ? ' aria-current="true"' : "") + '><span class="name">' + name + '</span><span class="cnt">' + cnt + "</span></button>";
-  h += '</div><div class="side-list"><h4>GRUPLAR</h4>';
-  for (const g of data.groups) {
-    const cnt = open.filter((t) => t.groupId === g.id).length;
-    h += '<button class="nav-item' + (ui.filter === g.id ? " active" : "") + '" data-act="filter" data-id="' + g.id + '"><span class="swatch" style="background:' + esc(g.color) + '"></span><span class="name">' + esc(g.name) + '</span><span class="cnt">' + cnt + "</span></button>";
+  const list = items();
+  let views, groupCount;
+  if (ui.mode === "tasks") {
+    const open = list.filter((t) => !isDone(t));
+    views = [["all", "Tüm işler", list.length], ["open", "Açık işler", open.length], ["late", "Süresi geçen", list.filter(isLate).length], ["done", "Tamamlanan", list.length - open.length]];
+    groupCount = (g) => open.filter((t) => t.groupId === g.id).length;
+  } else {
+    views = [["all", "Tüm uygulamalar", list.length]].concat(APP_STATUSES.map((s) => ["st:" + s, s, list.filter((a) => a.status === s).length]));
+    groupCount = (g) => list.filter((a) => a.groupId === g.id).length;
   }
+  let h = '<div class="side-list"><h4>GÖRÜNÜM</h4>' + views.map(([id, n, c]) => navBtn(id, n, c)).join("") + "</div>";
+  h += '<div class="side-list"><h4>GRUPLAR</h4>' + groupsOf().map((g) => navBtn(g.id, g.name, groupCount(g), g.color)).join("");
   h += '<button class="nav-item nav-add" data-act="new-group">+ Yeni grup</button></div>';
   $("#side").innerHTML = h;
 }
 
+function taskRow(t) {
+  const late = isLate(t);
+  return '<div class="row' + (isDone(t) ? " done" : "") + (ui.selected.tasks === t.id ? " sel" : "") + '">' +
+    '<input type="checkbox" data-act="toggle" data-id="' + t.id + '"' + (isDone(t) ? " checked" : "") + ' aria-label="' + esc(t.title) + ' tamamlandı">' +
+    '<button class="title" data-act="select" data-id="' + t.id + '">' + esc(t.title) + "</button>" +
+    (t.priority === "Yüksek" && !isDone(t) ? ICON.flag : "") + badges(t) +
+    '<span class="chip ' + STATUS_CLS[t.status] + '">' + t.status + "</span>" +
+    '<span class="due' + (late ? " late" : "") + '"' + (late ? ' title="Süresi geçti"' : "") + ">" + fmtDate(t.due) + "</span></div>";
+}
+function appRow(a) {
+  return '<div class="row' + (a.status === "Kullanım dışı" ? " done" : "") + (ui.selected.apps === a.id ? " sel" : "") + '">' +
+    '<button class="title" data-act="select" data-id="' + a.id + '">' + esc(a.name) + "</button>" +
+    (a.tech ? '<span class="tag">' + esc(a.tech) + "</span>" : "") +
+    (a.version ? '<span class="ver">v' + esc(a.version.replace(/^v/i, "")) + "</span>" : "") + badges(a) +
+    '<span class="chip ' + STATUS_CLS[a.status] + '">' + a.status + "</span></div>";
+}
+function badges(x) {
+  return (x.notes.length ? '<span class="badge" title="Dipnot">' + ICON.note + x.notes.length + "</span>" : "") +
+    (x.codes.length ? '<span class="badge" title="Kod">' + ICON.code + x.codes.length + "</span>" : "");
+}
+
 function renderList() {
-  const f = ui.filter;
-  const titles = { all: "Tüm işler", open: "Açık işler", late: "Süresi geçen işler", done: "Tamamlanan işler" };
+  const f = curFilter(), M = MODES[ui.mode];
+  const titles = { all: "Tüm " + M.label.toLocaleLowerCase("tr"), open: "Açık işler", late: "Süresi geçen işler", done: "Tamamlanan işler" };
   const g0 = findGroup(f);
-  const title = titles[f] || (g0 ? g0.name : "Tüm işler");
-  const visible = data.tasks.filter((t) => matchesFilter(t) && matchesQuery(t));
-  const openCnt = visible.filter((t) => !isDone(t)).length;
-  let h = '<div class="view-head"><h1>' + esc(title) + "</h1><span>" + (ui.q ? visible.length + ' sonuç · "' + esc(ui.q) + '"' : openCnt + " açık iş") + "</span></div>";
+  const title = titles[f] || (g0 ? g0.name : f.startsWith("st:") ? f.slice(3) + " uygulamalar" : titles.all);
+  const visible = items().filter((x) => matchesFilter(x) && matchesQuery(x));
+  const sub = ui.q ? visible.length + ' sonuç · "' + esc(ui.q) + '"'
+    : ui.mode === "tasks" ? visible.filter((t) => !isDone(t)).length + " açık iş" : visible.length + " uygulama";
+  let h = '<div class="view-head"><h1>' + esc(title) + "</h1><span>" + sub + "</span></div>";
   const showEmptyGroups = !ui.q && (f === "all" || f === "open" || g0);
   let any = false;
-  for (const g of data.groups) {
+  for (const g of groupsOf()) {
     if (g0 && g.id !== g0.id) continue;
-    const list = visible.filter((t) => t.groupId === g.id).sort(sortTasks);
+    const list = visible.filter((x) => x.groupId === g.id).sort(ui.mode === "tasks" ? sortTasks : sortApps);
     if (!list.length && !showEmptyGroups) continue;
     any = true;
     const closed = !!ui.collapsed[g.id] && !ui.q;
     h += '<section class="group' + (closed ? " closed" : "") + '"><div class="group-head">' +
       '<button class="icon-btn ghost" data-act="collapse" data-id="' + g.id + '" aria-expanded="' + !closed + '" aria-label="' + esc(g.name) + ' grubunu aç veya kapat">' + ICON.chev + "</button>" +
       '<span class="swatch" style="background:' + esc(g.color) + '"></span><span class="gname">' + esc(g.name) + '</span><span class="pill">' + list.length + "</span>" +
-      '<div class="group-tools"><button class="link" data-act="new-task" data-group="' + g.id + '">+ İş ekle</button>' +
-      '<button class="icon-btn ghost" data-act="edit-group" data-id="' + g.id + '" aria-label="Grubu düzenle">' + ICON.pen + "</button></div></div><div class=\"rows\">";
-    if (!list.length) h += '<div class="rows-empty">Bu grupta iş yok.</div>';
-    for (const t of list) {
-      const late = isLate(t);
-      h += '<div class="row' + (isDone(t) ? " done" : "") + (ui.selected === t.id ? " sel" : "") + '">' +
-        '<input type="checkbox" data-act="toggle" data-id="' + t.id + '"' + (isDone(t) ? " checked" : "") + ' aria-label="' + esc(t.title) + ' tamamlandı">' +
-        '<button class="title" data-act="select" data-id="' + t.id + '">' + esc(t.title) + "</button>" +
-        (t.priority === "Yüksek" && !isDone(t) ? ICON.flag : "") +
-        (t.notes.length ? '<span class="badge" title="Dipnot">' + ICON.note + t.notes.length + "</span>" : "") +
-        (t.codes.length ? '<span class="badge" title="Kod">' + ICON.code + t.codes.length + "</span>" : "") +
-        '<span class="chip ' + STATUS_CLS[t.status] + '">' + t.status + "</span>" +
-        '<span class="due' + (late ? " late" : "") + '"' + (late ? ' title="Süresi geçti"' : "") + ">" + fmtDate(t.due) + "</span></div>";
-    }
+      '<div class="group-tools"><button class="link" data-act="new-item" data-group="' + g.id + '">' + M.addLabel + "</button>" +
+      '<button class="icon-btn ghost" data-act="edit-group" data-id="' + g.id + '" aria-label="Grubu düzenle">' + ICON.pen + '</button></div></div><div class="rows">';
+    if (!list.length) h += '<div class="rows-empty">' + M.empty + "</div>";
+    for (const x of list) h += ui.mode === "tasks" ? taskRow(x) : appRow(x);
     h += "</div></section>";
   }
-  if (!any) h += '<div class="empty">' + (ui.q ? "Aramaya uyan iş bulunamadı." : "Bu görünümde iş yok.") + "</div>";
+  if (!any) h += '<div class="empty">' + (ui.q ? "Aramaya uyan kayıt bulunamadı." : "Bu görünümde kayıt yok.") + "</div>";
   $("#list").innerHTML = h;
 }
 
@@ -511,50 +606,60 @@ function renderDesc(text) {
   if (!text) return '<p class="desc none">Açıklama yok.</p>';
   return '<p class="desc">' + esc(text).replace(/\[(\d{1,3})\]/g, '<span class="fnref" title="Dipnot $1">$1</span>') + "</p>";
 }
+const metaCell = (label, valueHtml) => '<div><span class="lbl">' + label + '</span><span class="val">' + valueHtml + "</span></div>";
+const statusSelect = (x, list) => '<select aria-label="Durum" data-act="set-status" data-id="' + x.id + '" style="height:32px;border:1px solid #D5D9E0;border-radius:8px;padding:0 6px;background:#fff">' +
+  list.map((s) => "<option" + (s === x.status ? " selected" : "") + ">" + s + "</option>").join("") + "</select>";
 
 function renderDetail() {
   const el = $("#detail");
-  const t = findTask(ui.selected);
-  if (!t) {
-    el.innerHTML = '<div class="detail-empty"><p>Detayını görmek için bir iş seçin.</p><button class="btn primary" data-act="new-task">+ Yeni iş</button></div>';
+  const x = curSelected(), M = MODES[ui.mode];
+  if (!x) {
+    el.innerHTML = '<div class="detail-empty"><p>Detayını görmek için bir ' + M.one + ' seçin.</p><button class="btn primary" data-act="new-item">' + M.newLabel + "</button></div>";
     return;
   }
-  const g = findGroup(t.groupId);
-  let due = t.due ? fmtDate(t.due, true) : "—";
-  if (t.due && !isDone(t)) {
-    const diff = Math.round((new Date(t.due) - new Date(todayISO())) / 86400000);
-    due += diff < 0 ? " · " + -diff + " gün gecikti" : diff === 0 ? " · bugün" : " · " + diff + " gün kaldı";
-  }
+  const g = findGroup(x.groupId);
   let h = '<div class="d-top"><span class="swatch" style="background:' + esc(g.color) + '"></span><span class="grp">' + esc(g.name) + "</span>" +
-    '<div class="tools"><button class="icon-btn" data-act="edit-task" data-id="' + t.id + '" aria-label="Düzenle">' + ICON.pen + "</button>" +
-    '<button class="icon-btn danger" data-act="delete-task" data-id="' + t.id + '" aria-label="Sil">' + ICON.trash + "</button></div></div>" +
-    "<h2>" + esc(t.title) + "</h2>" +
-    '<div class="meta"><div><span class="lbl">Durum</span><span><select aria-label="Durum" data-act="set-status" data-id="' + t.id + '" style="height:32px;border:1px solid #D5D9E0;border-radius:8px;padding:0 6px;background:#fff">' +
-    STATUSES.map((s) => "<option" + (s === t.status ? " selected" : "") + ">" + s + "</option>").join("") + "</select></span></div>" +
-    '<div><span class="lbl">Öncelik</span><span>' + t.priority + "</span></div>" +
-    '<div><span class="lbl">Başlangıç</span><span>' + (t.start ? fmtDate(t.start, true) : "—") + "</span></div>" +
-    '<div><span class="lbl">Son tarih</span><span class="' + (isLate(t) ? "late-text" : "") + '">' + due + "</span></div></div>" +
-    '<div class="sec"><div class="sec-head"><h3>Açıklama</h3></div>' + renderDesc(t.desc) + "</div>";
+    '<div class="tools"><button class="icon-btn" data-act="edit-item" data-id="' + x.id + '" aria-label="Düzenle">' + ICON.pen + "</button>" +
+    '<button class="icon-btn danger" data-act="delete-item" data-id="' + x.id + '" aria-label="Sil">' + ICON.trash + "</button></div></div>" +
+    "<h2>" + esc(itemName(x)) + "</h2>";
+
+  if (ui.mode === "tasks") {
+    let due = x.due ? fmtDate(x.due, true) : "—";
+    if (x.due && !isDone(x)) {
+      const diff = Math.round((new Date(x.due) - new Date(todayISO())) / 86400000);
+      due += diff < 0 ? " · " + -diff + " gün gecikti" : diff === 0 ? " · bugün" : " · " + diff + " gün kaldı";
+    }
+    h += '<div class="meta">' + metaCell("Durum", statusSelect(x, STATUSES)) + metaCell("Öncelik", x.priority) +
+      metaCell("Başlangıç", x.start ? fmtDate(x.start, true) : "—") +
+      metaCell("Son tarih", '<span class="' + (isLate(x) ? "late-text" : "") + '">' + due + "</span>") + "</div>";
+  } else {
+    const url = safeUrl(x.url);
+    const link = url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(x.url) + "</a>" : (x.url ? esc(x.url) : "—");
+    h += '<div class="meta">' + metaCell("Durum", statusSelect(x, APP_STATUSES)) + metaCell("Teknoloji", esc(x.tech) || "—") +
+      metaCell("Sürüm", esc(x.version) || "—") + metaCell("Sunucu / konum", esc(x.location) || "—") +
+      metaCell("Sorumlu / kullanıcılar", esc(x.owner) || "—") + metaCell("Bağlantı", link) + "</div>";
+  }
+  h += '<div class="sec"><div class="sec-head"><h3>' + (ui.mode === "tasks" ? "Açıklama" : "Uygulama hakkında") + "</h3></div>" + renderDesc(x.desc) + "</div>";
 
   // dipnotlar
-  h += '<div class="sec"><div class="sec-head"><h3>Dipnotlar</h3><span class="pill">' + t.notes.length + "</span></div>";
-  t.notes.forEach((n, i) => {
+  h += '<div class="sec"><div class="sec-head"><h3>Dipnotlar</h3><span class="pill">' + x.notes.length + "</span></div>";
+  x.notes.forEach((n, i) => {
     h += '<div class="note"><span class="num">' + (i + 1) + '</span><div class="body"><span>' + esc(n.text) + '</span><span class="date">' + fmtStamp(n.date) + "</span></div>" +
       '<button class="icon-btn ghost" data-act="del-note" data-id="' + n.id + '" aria-label="Dipnotu sil">' + ICON.x + "</button></div>";
   });
   h += '<div class="add-row"><label for="noteInput" class="sr">Yeni dipnot</label><textarea id="noteInput" rows="1" placeholder="Dipnot ekle…"></textarea><button class="btn" data-act="add-note">Ekle</button></div>' +
-    '<div class="hint">Enter ile ekle, Shift+Enter ile alt satır. Açıklamada [' + (t.notes.length + 1) + "] yazarak atıf yapabilirsiniz.</div></div>";
+    '<div class="hint">Enter ile ekle, Shift+Enter ile alt satır. Açıklamada [' + (x.notes.length + 1) + "] yazarak atıf yapabilirsiniz.</div></div>";
 
   // kodlar
-  h += '<div class="sec"><div class="sec-head"><h3>Kod parçacıkları</h3><span class="pill">' + t.codes.length + '</span><button class="link" data-act="new-code">+ Kod ekle</button></div>';
-  if (!t.codes.length) h += '<div class="placeholder">Henüz kod eklenmedi.</div>';
-  for (const c of t.codes) {
+  h += '<div class="sec"><div class="sec-head"><h3>Kod parçacıkları</h3><span class="pill">' + x.codes.length + '</span><button class="link" data-act="new-code">+ Kod ekle</button></div>';
+  if (!x.codes.length) h += '<div class="placeholder">Henüz kod eklenmedi.</div>';
+  for (const c of x.codes) {
     h += '<div class="code"><div class="code-head"><span class="t">' + esc(c.title) + '</span><span class="lang">' + esc(c.lang) + "</span>" +
       '<button data-act="copy-code" data-id="' + c.id + '">Kopyala</button><button data-act="edit-code" data-id="' + c.id + '">Düzenle</button></div>' +
       "<pre>" + esc(c.code) + "</pre></div>";
   }
   h += "</div>";
-  h += '<div class="stamp">Oluşturma: ' + fmtStamp(t.created) + (t.updated ? " · Son güncelleme: " + fmtStamp(t.updated) : "") + "</div>";
+  h += '<div class="stamp">Oluşturma: ' + fmtStamp(x.created) + (x.updated ? " · Son güncelleme: " + fmtStamp(x.updated) : "") + "</div>";
   el.innerHTML = h;
 
   const ni = $("#noteInput");
@@ -563,26 +668,32 @@ function renderDetail() {
 }
 
 /* ---------------------------------------------------------------- işlemler */
-function touch(t) { t.updated = nowStamp(); }
+function touch(x) { x.updated = nowStamp(); }
 function commit() { persist(); saveUI(); render(); }
+function defaultGroup(groupId) {
+  if (groupId) return groupId;
+  const g = findGroup(curFilter());
+  return g ? g.id : groupsOf()[0].id;
+}
+function fillSelect(sel, list, value) {
+  sel.innerHTML = list.map((it) => { const [v, l] = Array.isArray(it) ? it : [it, it]; return '<option value="' + esc(v) + '"' + (v === value ? " selected" : "") + ">" + esc(l) + "</option>"; }).join("");
+}
 
 function addNote() {
-  const t = findTask(ui.selected); const ni = $("#noteInput");
-  const text = ni.value.trim(); if (!t || !text) return;
-  t.notes.push({ id: uid(), text, date: nowStamp() }); touch(t); commit();
+  const x = curSelected(); const ni = $("#noteInput");
+  const text = ni.value.trim(); if (!x || !text) return;
+  x.notes.push({ id: uid(), text, date: nowStamp() }); touch(x); commit();
   $("#noteInput").focus();
 }
 
 // iş diyaloğu
 let editingTaskId = null;
-function fillSelect(sel, items, value) { sel.innerHTML = items.map((it) => { const [v, l] = Array.isArray(it) ? it : [it, it]; return '<option value="' + esc(v) + '"' + (v === value ? " selected" : "") + ">" + esc(l) + "</option>"; }).join(""); }
 function openTask(id, groupId) {
   editingTaskId = id || null;
-  const t = id ? findTask(id) : null;
+  const t = id ? findItem(id, "tasks") : null;
   $("#dlgTaskTitle").textContent = t ? "İşi düzenle" : "Yeni iş";
   $("#tTitle").value = t ? t.title : "";
-  const defGroup = t ? t.groupId : (groupId || (findGroup(ui.filter) ? ui.filter : data.groups[0].id));
-  fillSelect($("#tGroup"), data.groups.map((g) => [g.id, g.name]), defGroup);
+  fillSelect($("#tGroup"), groupsOf("tasks").map((g) => [g.id, g.name]), t ? t.groupId : defaultGroup(groupId));
   fillSelect($("#tStatus"), STATUSES, t ? t.status : "Yapılacak");
   fillSelect($("#tPriority"), PRIORITIES, t ? t.priority : "Orta");
   $("#tStart").value = t ? t.start || "" : todayISO();
@@ -594,19 +705,48 @@ function openTask(id, groupId) {
 $("#fTask").addEventListener("submit", (e) => {
   e.preventDefault();
   const title = $("#tTitle").value.trim(); if (!title) return;
-  let t = editingTaskId && findTask(editingTaskId);
+  let t = editingTaskId && findItem(editingTaskId, "tasks");
   if (!t) { t = { id: uid(), notes: [], codes: [], created: nowStamp() }; data.tasks.push(t); }
   Object.assign(t, { title, groupId: $("#tGroup").value, status: $("#tStatus").value, priority: $("#tPriority").value, start: $("#tStart").value, due: $("#tDue").value, desc: $("#tDesc").value.trim() });
-  touch(t); ui.selected = t.id;
-  if (ui.collapsed[t.groupId]) ui.collapsed[t.groupId] = false;
+  touch(t); ui.selected.tasks = t.id; ui.collapsed[t.groupId] = false;
   $("#dlgTask").close(); commit();
 });
-$("#tDelete").addEventListener("click", () => { if (deleteTask(editingTaskId)) $("#dlgTask").close(); });
-function deleteTask(id) {
-  const t = findTask(id); if (!t) return false;
-  if (!confirm('"' + t.title + '" silinsin mi? Dipnotları ve kodları da silinir.')) return false;
-  data.tasks = data.tasks.filter((x) => x.id !== id);
-  if (ui.selected === id) ui.selected = null;
+$("#tDelete").addEventListener("click", () => { if (deleteItem(editingTaskId)) $("#dlgTask").close(); });
+
+// uygulama diyaloğu
+let editingAppId = null;
+function openApp(id, groupId) {
+  editingAppId = id || null;
+  const a = id ? findItem(id, "apps") : null;
+  $("#dlgAppTitle").textContent = a ? "Uygulamayı düzenle" : "Yeni uygulama";
+  $("#aName").value = a ? a.name : "";
+  fillSelect($("#aGroup"), groupsOf("apps").map((g) => [g.id, g.name]), a ? a.groupId : defaultGroup(groupId));
+  fillSelect($("#aStatus"), APP_STATUSES, a ? a.status : "Canlıda");
+  for (const [k, f] of [["tech", "#aTech"], ["version", "#aVersion"], ["location", "#aLocation"], ["owner", "#aOwner"], ["url", "#aUrl"], ["desc", "#aDesc"]]) $(f).value = a ? a[k] || "" : "";
+  const techs = [...new Set(TECHS.concat(data.apps.map((x) => x.tech).filter(Boolean)))];
+  $("#techList").innerHTML = techs.map((t) => '<option value="' + esc(t) + '">').join("");
+  $("#aDelete").hidden = !a;
+  $("#dlgApp").showModal(); $("#aName").focus();
+}
+$("#fApp").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const name = $("#aName").value.trim(); if (!name) return;
+  let a = editingAppId && findItem(editingAppId, "apps");
+  if (!a) { a = { id: uid(), notes: [], codes: [], created: nowStamp() }; data.apps.push(a); }
+  Object.assign(a, {
+    name, groupId: $("#aGroup").value, status: $("#aStatus").value, tech: $("#aTech").value.trim(), version: $("#aVersion").value.trim(),
+    location: $("#aLocation").value.trim(), owner: $("#aOwner").value.trim(), url: $("#aUrl").value.trim(), desc: $("#aDesc").value.trim()
+  });
+  touch(a); ui.selected.apps = a.id; ui.collapsed[a.groupId] = false;
+  $("#dlgApp").close(); commit();
+});
+$("#aDelete").addEventListener("click", () => { if (deleteItem(editingAppId)) $("#dlgApp").close(); });
+
+function deleteItem(id) {
+  const x = findItem(id); if (!x) return false;
+  if (!confirm('"' + itemName(x) + '" silinsin mi? Dipnotları ve kodları da silinir.')) return false;
+  data[ui.mode] = data[ui.mode].filter((y) => y.id !== id);
+  if (ui.selected[ui.mode] === id) ui.selected[ui.mode] = null;
   commit(); return true;
 }
 
@@ -615,9 +755,9 @@ let editingGroupId = null;
 function openGroup(id) {
   editingGroupId = id || null;
   const g = id ? findGroup(id) : null;
-  $("#dlgGroupTitle").textContent = g ? "Grubu düzenle" : "Yeni grup";
+  $("#dlgGroupTitle").textContent = g ? "Grubu düzenle" : (ui.mode === "tasks" ? "Yeni iş grubu" : "Yeni uygulama grubu");
   $("#gName").value = g ? g.name : "";
-  const used = data.groups.map((x) => x.color);
+  const used = groupsOf().map((x) => x.color);
   const color = g ? g.color : (COLORS.find((c) => !used.includes(c)) || COLORS[0]);
   $("#gColors").innerHTML = COLORS.map((c, i) => '<label><input type="radio" name="gcolor" value="' + c + '"' + (c === color ? " checked" : "") + ' aria-label="Renk ' + (i + 1) + '"><span style="background:' + c + '"></span></label>').join("");
   $("#gDelete").hidden = !g;
@@ -629,28 +769,29 @@ $("#fGroup").addEventListener("submit", (e) => {
   const color = (document.querySelector('input[name="gcolor"]:checked') || {}).value || COLORS[0];
   let g = editingGroupId && findGroup(editingGroupId);
   if (g) Object.assign(g, { name, color });
-  else { g = { id: uid(), name, color }; data.groups.push(g); ui.filter = g.id; }
+  else { g = { id: uid(), name, color, kind: MODES[ui.mode].kind }; data.groups.push(g); ui.filter[ui.mode] = g.id; }
   $("#dlgGroup").close(); commit();
 });
 $("#gDelete").addEventListener("click", () => {
   const g = findGroup(editingGroupId); if (!g) return;
-  if (data.groups.length === 1) { alert("Son grup silinemez."); return; }
-  const n = data.tasks.filter((t) => t.groupId === g.id).length;
-  const target = data.groups.find((x) => x.id !== g.id);
-  const msg = n ? '"' + g.name + '" grubu silinsin mi? İçindeki ' + n + ' iş "' + target.name + '" grubuna taşınacak.' : '"' + g.name + '" grubu silinsin mi?';
+  const same = groupsOf();
+  if (same.length === 1) { alert("Bu bölümdeki son grup silinemez."); return; }
+  const n = items().filter((x) => x.groupId === g.id).length;
+  const target = same.find((x) => x.id !== g.id);
+  const msg = n ? '"' + g.name + '" grubu silinsin mi? İçindeki ' + n + " kayıt \"" + target.name + '" grubuna taşınacak.' : '"' + g.name + '" grubu silinsin mi?';
   if (!confirm(msg)) return;
-  data.tasks.forEach((t) => { if (t.groupId === g.id) t.groupId = target.id; });
+  items().forEach((x) => { if (x.groupId === g.id) x.groupId = target.id; });
   data.groups = data.groups.filter((x) => x.id !== g.id);
-  if (ui.filter === g.id) ui.filter = "all";
+  if (curFilter() === g.id) ui.filter[ui.mode] = "all";
   $("#dlgGroup").close(); commit();
 });
 
 // kod diyaloğu
 let editingCodeId = null;
 function openCode(id) {
-  const t = findTask(ui.selected); if (!t) return;
+  const x = curSelected(); if (!x) return;
   editingCodeId = id || null;
-  const c = id ? t.codes.find((x) => x.id === id) : null;
+  const c = id ? x.codes.find((y) => y.id === id) : null;
   $("#dlgCodeTitle").textContent = c ? "Kodu düzenle" : "Kod parçacığı ekle";
   $("#cTitle").value = c ? c.title : "";
   fillSelect($("#cLang"), LANGS, c ? c.lang : (localStorage.getItem("isTakip.lastLang") || "SQL"));
@@ -661,24 +802,23 @@ function openCode(id) {
 $("#cCode").addEventListener("keydown", (e) => {
   if (e.key === "Tab" && !e.shiftKey) {
     e.preventDefault();
-    const ta = e.target, s = ta.selectionStart, en = ta.selectionEnd;
-    ta.setRangeText("    ", s, en, "end");
+    const ta = e.target; ta.setRangeText("    ", ta.selectionStart, ta.selectionEnd, "end");
   }
 });
 $("#fCode").addEventListener("submit", (e) => {
   e.preventDefault();
-  const t = findTask(ui.selected); if (!t) return;
+  const x = curSelected(); if (!x) return;
   const title = $("#cTitle").value.trim(), code = $("#cCode").value.replace(/\s+$/, "");
   if (!title || !code) return;
   const lang = $("#cLang").value; localStorage.setItem("isTakip.lastLang", lang);
-  let c = editingCodeId && t.codes.find((x) => x.id === editingCodeId);
-  if (c) Object.assign(c, { title, lang, code }); else t.codes.push({ id: uid(), title, lang, code });
-  touch(t); $("#dlgCode").close(); commit();
+  const c = editingCodeId && x.codes.find((y) => y.id === editingCodeId);
+  if (c) Object.assign(c, { title, lang, code }); else x.codes.push({ id: uid(), title, lang, code });
+  touch(x); $("#dlgCode").close(); commit();
 });
 $("#cDelete").addEventListener("click", () => {
-  const t = findTask(ui.selected); if (!t) return;
+  const x = curSelected(); if (!x) return;
   if (!confirm("Bu kod parçacığı silinsin mi?")) return;
-  t.codes = t.codes.filter((x) => x.id !== editingCodeId); touch(t);
+  x.codes = x.codes.filter((y) => y.id !== editingCodeId); touch(x);
   $("#dlgCode").close(); commit();
 });
 
@@ -700,11 +840,11 @@ function openFileMenu() {
   $("#btnDisconnect").hidden = !fileHandle;
   $("#dlgFile").showModal();
 }
+const closeFileDlg = () => { if ($("#dlgFile").open) $("#dlgFile").close(); };
 async function fileNew() {
   try {
     const h = await window.showSaveFilePicker({ suggestedName: "is_takip_veri.json", ...PICK_OPTS });
-    await connectFile(h, "write");
-    $("#dlgFile").open && $("#dlgFile").close();
+    await connectFile(h, "write"); closeFileDlg();
     toast("Veri dosyası oluşturuldu: " + h.name);
   } catch (e) { if (e.name !== "AbortError") toast("Dosya oluşturulamadı: " + e.message); }
 }
@@ -713,11 +853,10 @@ async function fileOpen() {
     const [h] = await window.showOpenFilePicker({ ...PICK_OPTS, multiple: false });
     const p = await h.requestPermission({ mode: "readwrite" });
     if (p !== "granted") { toast("Yazma izni verilmedi"); return; }
-    if (data.tasks.length && !confirm("Seçilen dosyadaki veriler açılacak; tarayıcıdaki mevcut kayıtların yerine geçecek. Devam edilsin mi?")) return;
+    if ((data.tasks.length || data.apps.length) && !confirm("Seçilen dosyadaki veriler açılacak; tarayıcıdaki mevcut kayıtların yerine geçecek. Devam edilsin mi?")) return;
     await connectFile(h, "read");
-    ui.selected = null; ui.filter = "all"; saveUI(); render();
-    $("#dlgFile").open && $("#dlgFile").close();
-    toast("Açıldı: " + h.name);
+    ui.selected = { tasks: null, apps: null }; ui.filter = { tasks: "all", apps: "all" }; saveUI(); render();
+    closeFileDlg(); toast("Açıldı: " + h.name);
   } catch (e) { if (e.name !== "AbortError") toast("Dosya açılamadı: " + e.message); }
 }
 function exportJSON() {
@@ -730,10 +869,9 @@ $("#importInput").addEventListener("change", async (e) => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   try {
     const d = normalize(JSON.parse(await f.text()));
-    if (!confirm(d.tasks.length + " iş ve " + d.groups.length + " grup yüklenecek; mevcut verilerin yerine geçecek. Devam edilsin mi?")) return;
-    data = d; ui.selected = null; ui.filter = "all";
-    $("#dlgFile").open && $("#dlgFile").close();
-    commit(); toast("Yedek yüklendi");
+    if (!confirm(d.tasks.length + " iş, " + d.apps.length + " uygulama ve " + d.groups.length + " grup yüklenecek; mevcut verilerin yerine geçecek. Devam edilsin mi?")) return;
+    data = d; ui.selected = { tasks: null, apps: null }; ui.filter = { tasks: "all", apps: "all" };
+    closeFileDlg(); commit(); toast("Yedek yüklendi");
   } catch (err) { alert("Dosya okunamadı: " + err.message); }
 });
 
@@ -743,24 +881,25 @@ document.addEventListener("click", async (e) => {
   const el = e.target.closest("[data-act]"); if (!el || el.tagName === "SELECT" || el.type === "checkbox") return;
   const id = el.dataset.id, act = el.dataset.act;
   switch (act) {
-    case "filter": ui.filter = id; saveUI(); render(); break;
+    case "mode": ui.mode = id; saveUI(); render(); break;
+    case "filter": ui.filter[ui.mode] = id; saveUI(); render(); break;
     case "collapse": ui.collapsed[id] = !ui.collapsed[id]; saveUI(); renderList(); break;
-    case "select": ui.selected = id; saveUI(); renderList(); renderDetail(); if (window.innerWidth < 900) $("#detail").scrollIntoView({ behavior: "smooth" }); break;
-    case "new-task": openTask(null, el.dataset.group); break;
-    case "edit-task": openTask(id); break;
-    case "delete-task": deleteTask(id); break;
+    case "select": ui.selected[ui.mode] = id; saveUI(); renderList(); renderDetail(); if (window.innerWidth < 900) $("#detail").scrollIntoView({ behavior: "smooth" }); break;
+    case "new-item": ui.mode === "tasks" ? openTask(null, el.dataset.group) : openApp(null, el.dataset.group); break;
+    case "edit-item": ui.mode === "tasks" ? openTask(id) : openApp(id); break;
+    case "delete-item": deleteItem(id); break;
     case "new-group": openGroup(null); break;
     case "edit-group": openGroup(id); break;
     case "add-note": addNote(); break;
     case "del-note": {
-      const t = findTask(ui.selected);
-      if (t && confirm("Bu dipnot silinsin mi?")) { t.notes = t.notes.filter((n) => n.id !== id); touch(t); commit(); }
+      const x = curSelected();
+      if (x && confirm("Bu dipnot silinsin mi?")) { x.notes = x.notes.filter((n) => n.id !== id); touch(x); commit(); }
       break;
     }
     case "new-code": openCode(null); break;
     case "edit-code": openCode(id); break;
     case "copy-code": {
-      const t = findTask(ui.selected); const c = t && t.codes.find((x) => x.id === id);
+      const x = curSelected(); const c = x && x.codes.find((y) => y.id === id);
       if (c && await copyText(c.code)) { el.textContent = "Kopyalandı"; setTimeout(() => { el.textContent = "Kopyala"; }, 1500); }
       break;
     }
@@ -769,7 +908,7 @@ document.addEventListener("click", async (e) => {
     case "file-open": fileOpen(); break;
     case "file-disconnect":
       fileHandle = null; fileState = "none"; await idb.del("handle");
-      $("#dlgFile").close(); render(); toast("Dosya bağlantısı kesildi"); break;
+      closeFileDlg(); render(); toast("Dosya bağlantısı kesildi"); break;
     case "reconnect": reconnect(); break;
     case "retry-write": fileState = "connected"; writeFile(); break;
     case "export": exportJSON(); break;
@@ -780,18 +919,18 @@ document.addEventListener("click", async (e) => {
 document.addEventListener("change", (e) => {
   const el = e.target;
   if (el.dataset.act === "toggle") {
-    const t = findTask(el.dataset.id); if (!t) return;
+    const t = findItem(el.dataset.id, "tasks"); if (!t) return;
     t.status = el.checked ? "Tamamlandı" : "Yapılacak"; touch(t); commit();
   } else if (el.dataset.act === "set-status") {
-    const t = findTask(el.dataset.id); if (!t) return;
-    t.status = el.value; touch(t); commit();
+    const x = findItem(el.dataset.id); if (!x) return;
+    x.status = el.value; touch(x); commit();
   }
 });
 $("#q").addEventListener("input", (e) => { ui.q = e.target.value.trim(); renderList(); });
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("#q").focus(); $("#q").select(); }
 });
-window.addEventListener("beforeunload", (e) => {
+window.addEventListener("beforeunload", () => {
   if (writeTimer && fileState === "connected") { clearTimeout(writeTimer); writeFile(); }
 });
 // başka sekmede değişirse (dosya bağlı değilken) güncelle
@@ -800,8 +939,13 @@ window.addEventListener("storage", (e) => {
 });
 
 /* ---------------------------------------------------------------- başlangıç */
-if (!findTask(ui.selected)) ui.selected = null;
-if (ui.filter && !["all", "open", "late", "done"].includes(ui.filter) && !findGroup(ui.filter)) ui.filter = "all";
+if (!MODES[ui.mode]) ui.mode = "tasks";
+for (const m of ["tasks", "apps"]) {
+  if (!findItem(ui.selected[m], m)) ui.selected[m] = null;
+  const f = ui.filter[m] || "all";
+  const ok = f === "all" || (m === "tasks" ? ["open", "late", "done"].includes(f) : f.startsWith("st:")) || (findGroup(f) && findGroup(f).kind === MODES[m].kind);
+  ui.filter[m] = ok ? f : "all";
+}
 render();
 restoreHandle();
 </script>
