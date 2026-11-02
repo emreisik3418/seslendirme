@@ -8,7 +8,7 @@ from datetime import datetime
 import streamlit as st
 
 import config
-from services.document_reader import metin_cikar, sayfalara_esle, word_sayfa_metinleri
+from services.document_reader import metin_cikar, sayfa_dosyasi_oku, sayfalara_esle
 from services.llm_client import LLMHatasi, formatla, sayfalari_formatla
 from services.pdf_kartlar import sayfa_duzeni
 from services.pdf_pages import sayfa_gorseli, sayfa_metinleri
@@ -266,38 +266,61 @@ with sekme_pdf:
             kartli = [i + 1 for i in range(n) if kart_duzeni(st.session_state.pdf_veri, i)]
             st.caption(f"Gösterge kartı bulunan sayfalar: {', '.join(map(str, kartli)) or 'yok'}")
 
+        KAYNAK_PDF, KAYNAK_DOSYA, KAYNAK_HAZIR = (
+            "PDF'ten oku", "Dosyadan al (LLM'e gönder)", "Hazır metin (LLM'siz)")
         kaynak = st.radio(
-            "Sayfa metinleri", ["PDF'ten oku", "Word dosyasından al"], horizontal=True,
-            help="Word dosyasında her sayfanın metninden önce 'Sayfa 1', 'Sayfa 2' ... satırı olmalı. "
-                 "Bu satırlar yoksa Word'deki sayfa sonlarına (Ctrl+Enter) göre bölünür.",
+            "Sayfa metinleri", [KAYNAK_PDF, KAYNAK_DOSYA, KAYNAK_HAZIR], horizontal=True,
+            help="Dosyada (.docx veya .txt) her sayfanın metninden önce ayrı bir satırda 'Sayfa 1', "
+                 "'Sayfa 2' ... olmalı. 'Hazır metin' seçilirse metinler LLM'e gönderilmeden doğrudan "
+                 "seslendirilir (LLM'den daha önce dönen SSML'i yapıştırabilirsiniz).",
         )
-        if kaynak == "Word dosyasından al":
-            word = st.file_uploader("Sayfa metinlerini içeren Word dosyası (.docx)", type=["docx"],
-                                    key="word_yukleyici")
-            if word is not None and word.name != st.session_state.get("word_adi"):
+        if kaynak in (KAYNAK_DOSYA, KAYNAK_HAZIR):
+            hazir_mod = kaynak == KAYNAK_HAZIR
+            dosya_turu = "seslendirme metinlerini (SSML veya düz metin)" if hazir_mod else "sayfa metinlerini"
+            sdosya = st.file_uploader(f"{dosya_turu.capitalize()} içeren dosya (.docx veya .txt)",
+                                      type=["docx", "txt"], key=f"sayfa_dosyasi_{int(hazir_mod)}")
+            anahtar = (sdosya.name, sdosya.size, hazir_mod) if sdosya is not None else None
+            if anahtar and anahtar != st.session_state.get("sayfa_dosyasi_anahtar"):
                 try:
-                    sayfalar, yontem = word_sayfa_metinleri(word.getvalue())
+                    sayfalar, yontem = sayfa_dosyasi_oku(sdosya.name, sdosya.getvalue())
                     metinler, uyarilar = sayfalara_esle(sayfalar, n)
-                    st.session_state.pdf_metinler = metinler
-                    st.session_state.word_adi = word.name
-                    st.session_state.word_bilgi = (yontem, uyarilar)
+                    if hazir_mod:
+                        # LLM atlanir: metinler dogrudan seslendirme kutularina yazilir
+                        onarilan = []
+                        for i, m in enumerate(metinler):
+                            if m:
+                                m, onarildi = ssml_onar(m)
+                                if onarildi:
+                                    onarilan.append(str(i + 1))
+                            st.session_state[f"sayfa_ssml_{i}"] = m
+                        if onarilan:
+                            uyarilar.append(f"Hatalı SSML etiketleri otomatik düzeltildi: sayfa {', '.join(onarilan)}")
+                    else:
+                        st.session_state.pdf_metinler = metinler
+                    st.session_state.word_adi = sdosya.name
+                    st.session_state.word_bilgi = (yontem, uyarilar, sum(1 for m in metinler if m))
+                    st.session_state.sayfa_dosyasi_anahtar = anahtar
                 except Exception as e:
-                    st.error(f"Word dosyası okunamadı: {e}")
-            if st.session_state.get("word_adi"):
-                yontem, uyarilar = st.session_state.word_bilgi
-                dolu = sum(1 for m in st.session_state.pdf_metinler if m)
-                st.success(f"**{st.session_state.word_adi}** · {dolu} / {n} sayfaya metin eşleşti "
-                           f"({'Sayfa N satırlarına' if yontem == 'isaret' else 'sayfa sonlarına'} göre)")
+                    st.error(f"Dosya okunamadı: {e}")
+            if st.session_state.get("word_adi") and st.session_state.get("sayfa_dosyasi_anahtar", (0, 0, None))[2] == hazir_mod:
+                yontem, uyarilar, dolu = st.session_state.word_bilgi
+                st.success(f"**{st.session_state.word_adi}** · {dolu} / {n} sayfaya metin eşleşti"
+                           + (" · LLM atlanacak, metinler doğrudan seslendirilecek" if hazir_mod else ""))
                 for u in uyarilar:
                     st.warning(u)
             else:
                 st.caption("Format: her sayfanın metninden önce ayrı bir satırda **Sayfa 1**, **Sayfa 2** ... "
                            "Yazılmayan sayfalar sessiz geçilir.")
-        elif st.session_state.get("word_adi"):
+        if kaynak != KAYNAK_DOSYA and st.session_state.pdf_metinler != st.session_state.pdf_metinler_pdf:
             st.session_state.pdf_metinler = st.session_state.pdf_metinler_pdf
+        if kaynak == KAYNAK_PDF and st.session_state.get("word_adi"):
             st.session_state.word_adi = ""
+            st.session_state.sayfa_dosyasi_anahtar = None
 
-        if st.button("📝 Sayfaları LLM ile hazırla", disabled=not st.session_state.kurallar.strip()):
+        if kaynak == KAYNAK_HAZIR:
+            st.caption("LLM adımı atlandı. Sayfa kutularındaki metinler düzenlenebilir; hazır olunca "
+                       "**PDF videosu oluştur**'a basın.")
+        elif st.button("📝 Sayfaları LLM ile hazırla", disabled=not st.session_state.kurallar.strip()):
             cubuk = st.progress(0.0, text="Sayfalar LLM'e gönderiliyor...")
             try:
                 sonuclar = sayfalari_formatla(

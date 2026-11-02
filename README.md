@@ -68,6 +68,12 @@ Sayfa 3 yazılmadığı için sessiz geçilir.
 - Hiç "Sayfa N" satırı yoksa Word'deki sayfa sonlarına (Ctrl + Enter) göre bölünür.
 - Örnek: `ornekler/sayfa_metinleri_ornek.docx`
 
+**Hazır metin (LLM'siz):** PDF sekmesinde "Sayfa metinleri → Hazır metin (LLM'siz)" seçilip aynı formatta bir
+.docx veya .txt yüklenirse metinler LLM'e gönderilmeden doğrudan seslendirilir. LLM'den daha önce dönen SSML'i
+sayfa numaralarıyla yapıştırabilir ya da düz metin yazabilirsiniz. Hatalı SSML etiketleri otomatik düzeltilir;
+metinler yüklendikten sonra sayfa kutularında düzenlenebilir. .txt dosyası UTF-8 veya Not Defteri'nin Türkçe
+kodlamasıyla (ANSI) kaydedilebilir.
+
 **Sunum görünümü (PDF modunda, varsayılan açık):** Gösterge kartı içeren sayfalarda rakamlar, renkler ve
 yorum PDF'ten okunur (LLM'e gönderilmez) ve modern kutucuklar halinde yeniden çizilir. Kutucuklar konuya
 göre satırlara gruplanır (bakiye, faiz); anlatıcı "bakiye" dediğinde bakiye satırı, "faiz" dediğinde faiz

@@ -74,6 +74,49 @@ def _govde_bloklari(belge):
                     yield " | ".join(hucreler), False, False
 
 
+def _isaret_var_mi(satirlar: list[str]) -> bool:
+    return any(_SAYFA_ISARETI.match(m.strip()) for m in satirlar if m.strip())
+
+
+def _isaretlere_gore_bol(satirlar: list[str]) -> dict[int, str]:
+    sayfalar: dict[int, list[str]] = {}
+    aktif = None
+    for metin in satirlar:
+        metin = metin.strip()
+        if not metin:
+            continue
+        m = _SAYFA_ISARETI.match(metin)
+        if m:
+            aktif = int(m.group(1))
+            sayfalar.setdefault(aktif, [])
+            if m.group(2):
+                sayfalar[aktif].append(m.group(2).strip())
+        elif aktif is not None:   # ilk isaretten onceki metin (baslik vb.) yok sayilir
+            sayfalar[aktif].append(metin)
+    return {n: "\n".join(s).strip() for n, s in sayfalar.items()}
+
+
+def metin_sayfa_metinleri(veri: bytes) -> tuple[dict[int, str], str]:
+    """.txt dosyasini "Sayfa N" satirlarina gore boler (Not Defteri'ne yapistirilmis SSML icin)."""
+    for kod in ("utf-8-sig", "cp1254", "latin-1"):   # Windows Turkce Not Defteri: cp1254
+        try:
+            yazi = veri.decode(kod)
+            break
+        except UnicodeDecodeError:
+            continue
+    satirlar = yazi.splitlines()
+    if not _isaret_var_mi(satirlar):
+        raise ValueError("Dosyada 'Sayfa 1', 'Sayfa 2' ... satırları bulunamadı.")
+    return _isaretlere_gore_bol(satirlar), "isaret"
+
+
+def sayfa_dosyasi_oku(ad: str, veri: bytes) -> tuple[dict[int, str], str]:
+    """Sayfa metinlerini .docx veya .txt dosyasindan okur."""
+    if ad.lower().endswith(".txt"):
+        return metin_sayfa_metinleri(veri)
+    return word_sayfa_metinleri(veri)
+
+
 def word_sayfa_metinleri(veri: bytes) -> tuple[dict[int, str], str]:
     """Word dosyasini PDF sayfalarina gore boler.
 
@@ -86,22 +129,9 @@ def word_sayfa_metinleri(veri: bytes) -> tuple[dict[int, str], str]:
 
     bloklar = list(_govde_bloklari(Document(BytesIO(veri))))
 
-    if any(_SAYFA_ISARETI.match(m.strip()) for m, _, _ in bloklar if m.strip()):
-        sayfalar: dict[int, list[str]] = {}
-        aktif = None
-        for metin, _, _ in bloklar:
-            metin = metin.strip()
-            if not metin:
-                continue
-            m = _SAYFA_ISARETI.match(metin)
-            if m:
-                aktif = int(m.group(1))
-                sayfalar.setdefault(aktif, [])
-                if m.group(2):
-                    sayfalar[aktif].append(m.group(2).strip())
-            elif aktif is not None:   # ilk isaretten onceki metin (baslik vb.) yok sayilir
-                sayfalar[aktif].append(metin)
-        return {n: "\n".join(s).strip() for n, s in sayfalar.items()}, "isaret"
+    satirlar = [m for m, _, _ in bloklar]
+    if _isaret_var_mi(satirlar):
+        return _isaretlere_gore_bol(satirlar), "isaret"
 
     sayfalar, aktif = {1: []}, 1
     for metin, once, sonra in bloklar:
