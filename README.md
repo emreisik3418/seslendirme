@@ -24,6 +24,7 @@ Tarayıcıda `http://localhost:8501` açılır. Kapatmak için terminalde `Ctrl 
 app.py                       Arayüz (Streamlit)
 izleyici.py                  Klasör izleyici: gelen PDF'leri otomatik videoya çevirir
 izleyici_baslat.bat          İzleyiciyi Windows'ta çift tıklayarak başlatır
+dosya_kontrol.py             Açılışta proje dosyalarının birbiriyle uyumunu kontrol eder
 config.py                    .env'den ayarları okur
 rules/kurallar.txt           Varsayılan kural seti (system prompt)
 services/document_reader.py  Word / PDF / TXT okuma
@@ -129,6 +130,12 @@ Kayıtlar `logs/izleyici.log` dosyasına yazılır. Bilgisayar açıldığında 
 `izleyici_baslat.bat` dosyasının kısayolunu Windows'un Başlangıç klasörüne (`Win + R` → `shell:startup`) koyabilirsiniz.
 
 ## Sorun giderme
+
+- **"Dosyalar güncel değil" uyarısı / `module 'config' has no attribute ...` hatası:** Bir dosya eski kalmış.
+  Uygulama ve izleyici açılışta dosyaların uyumunu kontrol edip hangisinin güncellenmesi gerektiğini yazar.
+  En kolayı repodan tüm projeyi indirmek (Code → Download ZIP) ve `.env` dosyanızı koruyarak üzerine kopyalamak.
+  Dosyayı güncelledikten sonra Streamlit'i Ctrl+C ile durdurup yeniden başlatın (açıkken içe aktarılan
+  dosyaları her zaman yeniden okumaz).
 
 - **HTTP 503 / 429 (seslendirme):** Servis geçici olarak yoğun. Uygulama `TTS_RETRY` kez otomatik tekrar dener.
   Başarılı bölümler `output/.tts_cache` içinde saklanır; "Video oluştur"a tekrar basınca sadece eksikler istenir.

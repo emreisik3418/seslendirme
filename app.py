@@ -7,7 +7,16 @@ from datetime import datetime
 
 import streamlit as st
 
-import config
+from dosya_kontrol import MESAJ, eksikleri_bul
+
+_sorunlar = eksikleri_bul()
+if _sorunlar:
+    st.set_page_config(page_title="DocVoice", page_icon="🎙️")
+    st.error("**Dosyalar güncel değil**\n\n" + "\n".join(f"- {s}" for s in _sorunlar))
+    st.info(MESAJ)
+    st.stop()
+
+import config  # noqa: E402
 from services.document_reader import metin_cikar, sayfa_dosyasi_oku, sayfalara_esle
 from services.llm_client import LLMHatasi, formatla, sayfalari_formatla
 from services.pdf_kartlar import sayfa_duzeni

@@ -34,7 +34,14 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-import config
+from dosya_kontrol import MESAJ, eksikleri_bul
+
+_sorunlar = eksikleri_bul()
+if _sorunlar:
+    print("Dosyalar güncel değil:\n" + "\n".join(f"  - {s}" for s in _sorunlar) + f"\n\n{MESAJ}")
+    sys.exit(1)
+
+import config  # noqa: E402
 from services.document_reader import sayfalara_esle, word_sayfa_metinleri
 from services.llm_client import LLMHatasi, sayfalari_formatla
 from services.pdf_pages import sayfa_metinleri
