@@ -242,7 +242,8 @@ def pdf_isle(pdf_yolu: Path, word_yolu: Path | None = None) -> Path:
             log.info(f"  {mesaj}")
 
     sonuc = pdf_videosu_olustur(veri, sayfa_ssml, ilerleme=ilerleme,
-                                altyazi=config.VIDEO_ALTYAZI, sunum=config.VIDEO_SUNUM)
+                                altyazi=config.VIDEO_ALTYAZI, sunum=config.VIDEO_SUNUM,
+                                karakter=config.VIDEO_KARAKTER)
 
     hedef_klasor = config.IZLE_HEDEF_KLASORU
     hedef_klasor.mkdir(parents=True, exist_ok=True)
@@ -324,7 +325,8 @@ def main():
     log.info(f"  Hedef klasör   : {config.IZLE_HEDEF_KLASORU}")
     log.info(f"  Kural seti     : {_kurallar_dosyasi()}")
     log.info(f"  Sunum görünümü : {'açık' if config.VIDEO_SUNUM else 'kapalı'} · "
-             f"Altyazı: {'açık' if config.VIDEO_ALTYAZI else 'kapalı'}")
+             f"Altyazı: {'açık' if config.VIDEO_ALTYAZI else 'kapalı'} · "
+             f"Karakter: {'açık' if config.VIDEO_KARAKTER else 'kapalı'}")
     _yarim_kalanlari_geri_al(klasor)
 
     takip = KopyalamaTakibi()

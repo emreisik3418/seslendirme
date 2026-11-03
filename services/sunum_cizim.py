@@ -12,6 +12,7 @@ import re
 from PIL import Image, ImageDraw
 
 import config
+import services.video_builder as vb
 from services.pdf_kartlar import Kart, Metrik, SayfaDuzeni
 from services.video_builder import (GENISLIK, SAYFA_ALANI_ALT, YUKSEKLIK, _arka_plan, _font,
                                     _logo_yerlestir, _renk, _sar, _tr_buyuk)
@@ -237,6 +238,7 @@ def _izgara(img, x0, y0, x1, y1, satirlar, ki, odak, secili, azami_olcek):
 def sunum_slayti(duzen: SayfaDuzeni, sira: int, toplam: int, vurgu=(None, frozenset()),
                  altyazi_alani: bool = True) -> Image.Image:
     odak, secili = vurgu
+    G = GENISLIK - vb.SAG_BOSLUK      # karakter aciksa icerik soldaki alana sigar
     img = _arka_plan().convert("RGBA")
     _ust_bilgi(img, duzen, sira, toplam)
     ust, alt = 165, (SAYFA_ALANI_ALT - 10 if altyazi_alani else YUKSEKLIK - 70)
@@ -245,27 +247,27 @@ def sunum_slayti(duzen: SayfaDuzeni, sira: int, toplam: int, vurgu=(None, frozen
 
     if n == 1:
         kart: Kart = duzen.kartlar[0]
-        y = _baslik(img, 100, ust, GENISLIK - 200, kart.baslik, 64)
+        y = _baslik(img, 100, ust, G - 200, kart.baslik, 64)
         normal = [(i, m) for i, m in enumerate(kart.metrikler) if not m.one_cikan]
         onde = [(i, m) for i, m in enumerate(kart.metrikler) if m.one_cikan]
-        sag_gen = 600 if (onde or kart.yorum) else 0
-        sol_x1 = GENISLIK - 100 - (sag_gen + 40 if sag_gen else 0)
+        sag_gen = (600 if not vb.SAG_BOSLUK else 470) if (onde or kart.yorum) else 0
+        sol_x1 = G - 100 - (sag_gen + 40 if sag_gen else 0)
         if normal:
             _izgara(img, 100, y, sol_x1, alt, _satirlar(normal), 0, odak, secili, 1.0)
         sx0, sy = sol_x1 + 40, y
         for mi, m in onde:
             h = (alt - y) * (0.52 if kart.yorum else 1.0) / len(onde)
-            _kutucuk(img, (sx0, sy, GENISLIK - 100, sy + h), m, _metrik_durumu(0, mi, odak, secili),
+            _kutucuk(img, (sx0, sy, G - 100, sy + h), m, _metrik_durumu(0, mi, odak, secili),
                      min(1.0, h / 330), buyuk=True)
             sy += h + bosluk
         if kart.yorum and sag_gen:
-            _yorum(img, (sx0, sy, GENISLIK - 100, alt), kart.yorum, 1.0, soluk=bool(secili))
+            _yorum(img, (sx0, sy, G - 100, alt), kart.yorum, 1.0, soluk=bool(secili))
         return img.convert("RGB")
 
     # 2-3 kart: yan yana sutunlar
     kenar = 100 if n == 2 else 70
     ara = 56 if n == 2 else 36
-    sutun = (GENISLIK - 2 * kenar - ara * (n - 1)) / n
+    sutun = (G - 2 * kenar - ara * (n - 1)) / n
     olcek = 0.85 if n == 2 else 0.68
     for ki, kart in enumerate(duzen.kartlar):
         x0 = kenar + ki * (sutun + ara)

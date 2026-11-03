@@ -216,9 +216,15 @@ if st.session_state.ses:
 # --- 5) Video ---
 st.divider()
 st.subheader("5. Video oluştur")
-altyazi_goster = st.toggle(
+t1, t2 = st.columns(2)
+altyazi_goster = t1.toggle(
     "Altyazı göster", value=config.VIDEO_ALTYAZI,
     help="Kapalıyken videoda altyazı görünmez; .srt dosyası yine de ayrıca indirilebilir.",
+)
+karakter_goster = t2.toggle(
+    "Konuşan karakter", value=config.VIDEO_KARAKTER,
+    help="Sağ alt köşede ağzı seslendirmeyle senkron hareket eden bir sunucu karakteri gösterilir; "
+         "içerik sola kayar.",
 )
 sekme_slayt, sekme_pdf = st.tabs(["🖼️ Slayt modu", "📄 PDF sayfa modu"])
 
@@ -232,6 +238,7 @@ with sekme_slayt:
                 st.session_state.sonuc,
                 ilerleme=lambda oran, mesaj: cubuk.progress(oran, text=mesaj),
                 altyazi=altyazi_goster,
+                karakter=karakter_goster,
             )
             st.toast(f"Kaydedildi: output/{st.session_state.video.video.name}")
         except (VideoHatasi, TTSHatasi, ValueError) as e:
@@ -371,6 +378,7 @@ with sekme_pdf:
                     ilerleme=lambda oran, mesaj: cubuk.progress(oran, text=mesaj),
                     altyazi=altyazi_goster,
                     sunum=sunum_gorunumu,
+                    karakter=karakter_goster,
                 )
                 st.toast(f"Kaydedildi: output/{st.session_state.video.video.name}")
             except (VideoHatasi, TTSHatasi, ValueError) as e:

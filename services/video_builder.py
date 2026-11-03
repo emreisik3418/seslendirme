@@ -22,6 +22,7 @@ from services.tts_client import TTSHatasi, seslendir
 
 GENISLIK, YUKSEKLIK = 1920, 1080
 KENAR = 140
+SAG_BOSLUK = 0   # karakter acikken icerigin sagda bos biraktigi alan (piksel); _karakter_alani() ayarlar
 
 
 class VideoHatasi(Exception):
@@ -202,13 +203,13 @@ def slayt_ciz(bolum: Bolum, sira: int, toplam: int, belge_basligi: str) -> Image
 
     # Arka planda buyuk, soluk bolum numarasi
     filigran = _font(True, 420)
-    d.text((GENISLIK - KENAR - filigran.getlength(f"{sira:02d}"), 150), f"{sira:02d}",
+    d.text((GENISLIK - KENAR - SAG_BOSLUK - filigran.getlength(f"{sira:02d}"), 150), f"{sira:02d}",
            font=filigran, fill=tuple(min(255, c + 7) for c in _renk(config.VIDEO_BG2)))
 
     # Baslik
     kapak = sira == 1
     font = _font(True, 92 if kapak else 72)
-    satirlar = _sar(_baslik(bolum), font, GENISLIK - 2 * KENAR - 60, 3 if kapak else 4)
+    satirlar = _sar(_baslik(bolum), font, GENISLIK - 2 * KENAR - 60 - SAG_BOSLUK, 3 if kapak else 4)
     satir_y = int(font.size * 1.22)
     blok = satir_y * len(satirlar)
     y0 = (YUKSEKLIK - 260 - blok) // 2 + 120
@@ -224,16 +225,17 @@ def altyazi_ekle(slayt: Image.Image, metin: str, ilerleme: float) -> Image.Image
     d = ImageDraw.Draw(katman)
 
     font = _font(False, 42)
-    satirlar = _sar(metin, font, 1500, 2) if metin.strip() else []
+    alan = GENISLIK - SAG_BOSLUK          # altyazi karakterin solundaki alanda ortalanir
+    satirlar = _sar(metin, font, min(1500, alan - 140), 2) if metin.strip() else []
     satir_y = 58
     if satirlar:
         kutu_y = len(satirlar) * satir_y + 44
         genis = max(font.getlength(s) for s in satirlar) + 80
-        x0 = (GENISLIK - genis) / 2
+        x0 = (alan - genis) / 2
         y0 = YUKSEKLIK - 70 - kutu_y
         d.rounded_rectangle([x0, y0, x0 + genis, y0 + kutu_y], radius=18, fill=(0, 0, 0, 215))
         for i, s in enumerate(satirlar):
-            d.text(((GENISLIK - font.getlength(s)) / 2, y0 + 22 + i * satir_y), s,
+            d.text(((alan - font.getlength(s)) / 2, y0 + 22 + i * satir_y), s,
                    font=font, fill=(255, 255, 255))
 
     # En altta ilerleme cubugu
@@ -282,9 +284,10 @@ def sayfa_zemini(sayfa: Image.Image, sira: int, toplam: int, altyazi_alani: bool
     Altyazi aciksa sayfa, altyazi bandinin ustunde kalacak sekilde yerlestirilir."""
     zemin = Image.new("RGB", (GENISLIK, YUKSEKLIK), _kenar_rengi(sayfa))
     alan_h = SAYFA_ALANI_ALT if altyazi_alani else YUKSEKLIK
-    oran = min(GENISLIK / sayfa.width, alan_h / sayfa.height)   # en-boy oranini koruyarak sigdir
+    alan_w = GENISLIK - SAG_BOSLUK
+    oran = min(alan_w / sayfa.width, alan_h / sayfa.height)   # en-boy oranini koruyarak sigdir
     on = sayfa.resize((round(sayfa.width * oran), round(sayfa.height * oran)), Image.LANCZOS)
-    zemin.paste(on, ((GENISLIK - on.width) // 2, (alan_h - on.height) // 2))
+    zemin.paste(on, ((alan_w - on.width) // 2, (alan_h - on.height) // 2))
 
     if config.VIDEO_SAYFA_NO:
         d = ImageDraw.Draw(zemin)
@@ -315,7 +318,8 @@ def _sessiz_wav(yol: Path, sure: float) -> float:
     return sure
 
 
-def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True) -> VideoSonucu:
+def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True,
+          karakter: bool = False) -> VideoSonucu:
     def bildir(oran, mesaj):
         if ilerleme:
             ilerleme(min(oran, 1.0), mesaj)
@@ -394,12 +398,30 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True) -> 
         config.CIKTI_KLASORU.mkdir(exist_ok=True)
         ad = f"{on_ek}_{datetime.now():%Y%m%d_%H%M%S}"
         video = config.CIKTI_KLASORU / f"{ad}.mp4"
-        _calistir([
-            ffmpeg, "-y", "-loglevel", "error",
-            "-f", "concat", "-safe", "0", "-i", str(liste),
-            "-i", str(tum_ses),
-            "-c:v", "libx264", "-tune", "stillimage", "-preset", "medium", "-crf", "20",
-            "-pix_fmt", "yuv420p", "-r", "25",
+        if karakter:
+            bildir(0.8, "Karakter canlandırılıyor")
+            karakter_listesi = _karakter_katmani(tmp, tum_ses)
+            x, y = _karakter_konumu()
+            komut = [
+                ffmpeg, "-y", "-loglevel", "error",
+                "-f", "concat", "-safe", "0", "-i", str(liste),
+                "-f", "concat", "-safe", "0", "-i", str(karakter_listesi),
+                "-i", str(tum_ses),
+                "-filter_complex",
+                f"[0:v]fps=25,format=rgba[z];[1:v]fps=25,format=rgba[k];"
+                f"[z][k]overlay={x}:{y}:eof_action=pass,format=yuv420p[v]",
+                "-map", "[v]", "-map", "2:a",
+                "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-r", "25",
+            ]
+        else:
+            komut = [
+                ffmpeg, "-y", "-loglevel", "error",
+                "-f", "concat", "-safe", "0", "-i", str(liste),
+                "-i", str(tum_ses),
+                "-c:v", "libx264", "-tune", "stillimage", "-preset", "medium", "-crf", "20",
+                "-pix_fmt", "yuv420p", "-r", "25",
+            ]
+        _calistir(komut + [
             "-c:a", "aac", "-b:a", "160k",
             "-shortest", "-movflags", "+faststart",
             str(video),
@@ -411,21 +433,75 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True) -> 
     return VideoSonucu(video=video, altyazi=altyazi, sure=toplam_sure, bolum_sayisi=len(sahneler))
 
 
-def video_olustur(icerik: str, ilerleme=None, altyazi: bool = True) -> VideoSonucu:
+# ------------------------------------------------------------ karakter
+def _karakter_konumu() -> tuple[int, int]:
+    from services import karakter
+    return karakter.konum()
+
+
+def _karakter_katmani(tmp: Path, tum_ses: Path) -> Path:
+    """Sesten kare kare agiz hallerini cikarir, FFmpeg concat listesi olarak yazar."""
+    from services import karakter
+
+    spritelar = karakter.sprite_seti()
+    for ad, img in spritelar.items():
+        img.save(tmp / f"karakter_{ad}.png")
+    halleri = karakter.agiz_halleri(tum_ses)
+    # Ardisik ayni kareleri birlestir (daha kisa liste, ayni sonuc)
+    satirlar, onceki, sayi = [], None, 0
+    for h in halleri + [None]:
+        if h == onceki:
+            sayi += 1
+            continue
+        if onceki is not None:
+            satirlar.append(f"file 'karakter_{onceki}.png'\nduration {sayi / karakter.FPS:.3f}")
+        onceki, sayi = h, 1
+    satirlar.append(f"file 'karakter_{halleri[-1]}.png'")
+    liste = tmp / "karakter.txt"
+    liste.write_text("\n".join(satirlar) + "\n", encoding="utf-8")
+    return liste
+
+
+class _karakter_alani:
+    """with blogu icinde cizilen her sey karakter icin sagda yer birakir."""
+
+    def __init__(self, acik: bool):
+        self.acik = acik
+
+    def __enter__(self):
+        global SAG_BOSLUK
+        if self.acik:
+            from services import karakter
+            SAG_BOSLUK = karakter.GEN + 40
+
+    def __exit__(self, *a):
+        global SAG_BOSLUK
+        SAG_BOSLUK = 0
+
+
+def video_olustur(icerik: str, ilerleme=None, altyazi: bool = True,
+                  karakter: bool = False) -> VideoSonucu:
     """Slayt modu. icerik: LLM'den gelen SSML. ilerleme: fn(oran 0-1, mesaj)"""
     bolumler = bolumlere_ayir(icerik)
     if not bolumler:
         raise VideoHatasi("Seslendirilecek metin bulunamadi.")
     belge_basligi = _baslik(bolumler[0])
-    sahneler = [
-        Sahne(zemin=slayt_ciz(b, i, len(bolumler), belge_basligi), bolumler=[b], etiket=f"Slayt {i}")
-        for i, b in enumerate(bolumler, 1)
-    ]
-    return _uret(sahneler, ilerleme, "docvoice", altyazi)
+    with _karakter_alani(karakter):
+        sahneler = [
+            Sahne(zemin=slayt_ciz(b, i, len(bolumler), belge_basligi), bolumler=[b], etiket=f"Slayt {i}")
+            for i, b in enumerate(bolumler, 1)
+        ]
+        return _uret(sahneler, ilerleme, "docvoice", altyazi, karakter)
 
 
 def pdf_videosu_olustur(pdf: bytes, sayfa_ssml: list[str], ilerleme=None,
-                        altyazi: bool = True, sunum: bool = False) -> VideoSonucu:
+                        altyazi: bool = True, sunum: bool = False,
+                        karakter: bool = False) -> VideoSonucu:
+    with _karakter_alani(karakter):
+        return _pdf_videosu(pdf, sayfa_ssml, ilerleme, altyazi, sunum, karakter)
+
+
+def _pdf_videosu(pdf, sayfa_ssml, ilerleme, altyazi, sunum, karakter) -> VideoSonucu:
     """PDF sayfa modu. sayfa_ssml[i]: i. sayfanin seslendirme metni (bos olabilir).
     sunum=True: gosterge karti bulunan sayfalar modern slayt olarak yeniden cizilir."""
     from services.pdf_pages import sayfa_gorseli
@@ -452,4 +528,4 @@ def pdf_videosu_olustur(pdf: bytes, sayfa_ssml: list[str], ilerleme=None,
         sahneler.append(Sahne(zemin=zemin, bolumler=bolumler, etiket=f"Sayfa {i + 1}", ciz=ciz))
     if not any(s.bolumler for s in sahneler):
         raise VideoHatasi("Hiçbir sayfada seslendirilecek metin yok.")
-    return _uret(sahneler, ilerleme, "docvoice_pdf", altyazi)
+    return _uret(sahneler, ilerleme, "docvoice_pdf", altyazi, karakter)

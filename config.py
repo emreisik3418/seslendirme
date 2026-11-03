@@ -106,6 +106,7 @@ VIDEO_LOGO = _logo_yolu()                            # logo dosya yolu (PNG/JPG,
 VIDEO_LOGO_ZEMIN = (os.getenv("VIDEO_LOGO_ZEMIN") or "otomatik").strip().lower()
 VIDEO_FONT = os.getenv("VIDEO_FONT", "")             # bos: Segoe UI / Arial
 VIDEO_FONT_BOLD = os.getenv("VIDEO_FONT_BOLD", "")
+VIDEO_KARAKTER = _bool("VIDEO_KARAKTER", False)      # sag altta konusan 2D sunucu karakteri
 VIDEO_SAYFA_NO = _bool("VIDEO_SAYFA_NO", False)      # sag ustte sayfa numarasi
 VIDEO_SUNUM = _bool("VIDEO_SUNUM", True)            # PDF modunda gosterge kartlarini yeniden ciz
 VIDEO_ALTYAZI = _bool("VIDEO_ALTYAZI", True)        # arayuzdeki "Altyazi goster" varsayilani
@@ -139,3 +140,6 @@ IZLE_ARALIK = float(os.getenv("IZLE_ARALIK", "10"))  # klasor kac saniyede bir k
 IZLE_BEKLEME = float(os.getenv("IZLE_BEKLEME", "5")) # dosya boyutu bu kadar sn degismezse kopyalama bitti sayilir
 IZLE_KURALLAR = _yol("IZLE_KURALLAR")                # bos: rules/kurallar.txt
 IZLE_SRT = _bool("IZLE_SRT", True)                   # .srt altyazi dosyasini da hedefe kopyala
+
+# Kendi karakter gorselleriniz (kapali.png, yarim.png, acik.png, kirpik.png); bos: yerlesik karakter
+KARAKTER_KLASORU = _yol("KARAKTER_KLASORU")

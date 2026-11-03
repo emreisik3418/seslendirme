@@ -33,6 +33,7 @@ services/ssml_tools.py       SSML'i <break> noktalarından bölümlere ayırır,
 services/pdf_pages.py        PDF sayfa metinleri ve sayfa görselleri
 services/pdf_kartlar.py      PDF'teki gösterge kartlarını (KPI) okur: etiket, birim, değer, renk, ok, yorum
 services/sunum_cizim.py      Kartları modern sunum slaytı olarak çizer, anlatıma göre vurgular
+services/karakter.py         Konuşan 2D sunucu karakteri ve sesten dudak senkronu
 services/video_builder.py    Slayt çizimi + FFmpeg ile MP4 ve SRT üretimi
 output/                      Üretilen ses dosyaları (repoya gitmez)
 ```
@@ -80,6 +81,13 @@ göre satırlara gruplanır (bakiye, faiz); anlatıcı "bakiye" dediğinde bakiy
 satırı vurgulanır. Birden fazla kart varsa kart adı geçtiğinde o karta odaklanılır. Kart bulunamayan
 sayfalar sayfa görseliyle gösterilir. Kartlar PDF içinde seçilebilir metin olmalıdır (resim olarak gömülü
 tablolar okunamaz).
+
+**Konuşan karakter:** 5. adımdaki "Konuşan karakter" anahtarı açıksa sağ alt köşede 2D bir sunucu karakteri
+gösterilir. Ağzı seslendirmenin şiddetine göre kare kare açılıp kapanır (kapalı / yarı açık / açık), arada göz
+kırpar; içerik ve altyazı karakterin solundaki alana yerleşir. Tamamen yerelde üretilir, ek servis gerekmez.
+Kendi karakterinizi kullanmak için `.env` içinde `KARAKTER_KLASORU` ile şeffaf arka planlı PNG'lerin bulunduğu
+klasörü verin: `kapali.png`, `yarim.png`, `acik.png` (ağız halleri, zorunlu) ve isteğe bağlı `kirpik.png`
+(gözler kapalı). Görseller aynı boyutta olmalı, karakter alt kenara yaslanır. İzleyici `VIDEO_KARAKTER` ayarını kullanır.
 
 Her iki modda:
 - Her bölüm ayrı seslendirilir, böylece geçişler ve altyazılar sesle senkron kalır.
