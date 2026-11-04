@@ -87,17 +87,32 @@ class _Kalem:
 
 
 def _kirp(img: Image.Image):
-    """Ince acik kontur ekler (koyu zeminde siluet secilsin), seffaf kenarlari kirpar.
-    Doner: (gorsel, (x, y))"""
-    alfa = img.split()[3]
-    kontur = Image.new("RGBA", img.size, (255, 255, 255, 0))
-    kontur.putalpha(alfa.filter(ImageFilter.MaxFilter(5)).point(lambda a: 95 if a > 40 else 0))
-    kontur.alpha_composite(img)
-    img = kontur
+    """Seffaf kenarlari kirpar. Doner: (gorsel, (x, y))"""
     kutu = img.getbbox()
     if not kutu:
         return img, (0, 0)
     return img.crop(kutu), (kutu[0], kutu[1])
+
+
+def _egri(p0, p1, p2, n=14):
+    """Ikinci derece Bezier egrisi uzerinde noktalar (yumusak sac hatlari icin)."""
+    return [((1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * p1[0] + t * t * p2[0],
+             (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t * t * p2[1])
+            for t in (i / n for i in range(n + 1))]
+
+
+def _yumusak_golge(k: "_Kalem", cizimler, maske_elips, bulaniklik=7):
+    """cizimler: [(x0, y0, x1, y1, rgba)] elipsleri bulaniklastirip maske elipsinin icinde birakir."""
+    from PIL import ImageChops
+    g = _Kalem(k.img.width // OLCEK, k.img.height // OLCEK, k.ox, k.oy)
+    for x0, y0, x1, y1, renk in cizimler:
+        g.elips(x0, y0, x1, y1, renk)
+    g.img = g.img.filter(ImageFilter.GaussianBlur(bulaniklik * OLCEK))
+    maske = Image.new("L", k.img.size, 0)
+    ImageDraw.Draw(maske).ellipse(k._k(*maske_elips), fill=255)
+    g.img.putalpha(ImageChops.multiply(g.img.split()[3], maske))
+    k.img.alpha_composite(g.img)
+    k.d = ImageDraw.Draw(k.img)
 
 
 # Bas katmani yerel tuvali: bas merkezi (BX, BY), boyun donme noktasi (BX, PY)
@@ -115,16 +130,29 @@ def _bas(agiz: int, goz_kapali: bool, kas: int, egim: int):
     k.elips(c + 50, y - 4, c + 70, y + 34, TEN_G)
     k.elips(c - 66, y + 34, c - 56, y + 44, vurgu)
     k.elips(c + 56, y + 34, c + 66, y + 44, vurgu)
-    # Yuz
-    k.elips(c - 58, y - 72, c + 58, y + 78, TEN)
-    # On sac: yana taranmis perce ve yan tutamlar
-    k.cokgen([(c - 64, y - 20), (c - 60, y - 70), (c - 20, y - 92), (c + 40, y - 88), (c + 66, y - 50),
-              (c + 64, y - 6), (c + 40, y - 52), (c + 4, y - 62), (c - 30, y - 50), (c - 50, y - 26)], SAC)
-    k.cokgen([(c - 30, y - 50), (c + 4, y - 62), (c + 40, y - 52), (c + 10, y - 70)], SAC_A)
-    # Kaslar
-    ky = y - 24 - (6 if kas else 0)
-    k.yay((c - 44, ky, c - 12, ky + 14), 200, 340, SAC, 4)
-    k.yay((c + 12, ky, c + 44, ky + 14), 200, 340, SAC, 4)
+    # Yuz ve hafif hacim golgesi (perce alti, yanaklar, cene)
+    yuz = (c - 58, y - 72, c + 58, y + 78)
+    k.elips(*yuz, TEN)
+    _yumusak_golge(k, [(c - 60, y - 84, c + 60, y - 40, TEN_G + (110,)),
+                       (c - 80, y - 10, c - 46, y + 66, TEN_G + (70,)),
+                       (c + 46, y - 10, c + 80, y + 66, TEN_G + (70,))], yuz, bulaniklik=8)
+    # On sac: yuvarlak tepe + yana taranmis yumusak perce + yuz kenarinda tutam
+    k.d.chord(k._k(c - 66, y - 102, c + 66, y - 8), 180, 360, fill=SAC)
+    # Yana taranmis perce: soldan saga dogru alnin ustunden kivrilarak sag sakaga iner
+    perce = (_egri((c - 64, y - 52), (c - 30, y - 70), (c + 6, y - 66))
+             + _egri((c + 6, y - 66), (c + 50, y - 58), (c + 64, y - 4))
+             + _egri((c + 64, y - 4), (c + 40, y - 30), (c + 10, y - 40))
+             + _egri((c + 10, y - 40), (c - 30, y - 50), (c - 64, y - 30)))
+    k.cokgen(perce, SAC)
+    k.cokgen(_egri((c - 62, y - 40), (c - 70, y + 10), (c - 54, y + 52))
+             + _egri((c - 54, y + 52), (c - 58, y + 6), (c - 50, y - 30)), SAC)
+    # Sac parlamasi
+    k.yay((c - 46, y - 92, c + 30, y - 40), 200, 290, SAC_A, 5)
+    k.yay((c - 10, y - 84, c + 56, y - 30), 250, 320, SAC_A, 3)
+    # Kaslar (ince, kavisli)
+    ky = y - 22 - (6 if kas else 0)
+    k.yay((c - 44, ky, c - 12, ky + 12), 205, 335, SAC, 3)
+    k.yay((c + 12, ky, c + 44, ky + 12), 205, 335, SAC, 3)
     # Gozler (kirpikli)
     for gx in (c - 27, c + 27):
         if goz_kapali:
@@ -146,15 +174,16 @@ def _bas(agiz: int, goz_kapali: bool, kas: int, egim: int):
     # Agiz
     if agiz == 0:
         k.yay((c - 20, y + 32, c + 20, y + 56), 20, 160, DUDAK, 4.5)
+        k.yay((c - 10, y + 50, c + 10, y + 60), 20, 160, _acik(DUDAK, 0.35), 3)
     elif agiz == 1:
         k.elips(c - 15, y + 44, c + 15, y + 62, (120, 40, 46))
         k.elips(c - 9, y + 53, c + 9, y + 62, (225, 115, 115))
         k.yay((c - 16, y + 41, c + 16, y + 64), 200, 340, DUDAK, 3)
     else:
-        k.elips(c - 18, y + 40, c + 18, y + 72, (120, 40, 46))
-        k.d.chord(k._k(c - 14, y + 40, c + 14, y + 54), 0, 180, fill=(255, 255, 255))
-        k.elips(c - 10, y + 60, c + 10, y + 71, (225, 115, 115))
-        k.yay((c - 19, y + 38, c + 19, y + 74), 200, 340, DUDAK, 3)
+        k.elips(c - 15, y + 41, c + 15, y + 67, (120, 40, 46))
+        k.d.chord(k._k(c - 12, y + 41, c + 12, y + 52), 0, 180, fill=(255, 255, 255))
+        k.elips(c - 9, y + 57, c + 9, y + 66, (225, 115, 115))
+        k.yay((c - 16, y + 39, c + 16, y + 69), 200, 340, DUDAK, 3)
     img = k.bitir()
     if egim:
         img = img.rotate(-egim, resample=Image.BICUBIC, center=(BX, PY))
@@ -166,9 +195,12 @@ def _arka_sac(egim: int):
     """Basin arkasinda kalan uzun sac (omuzlara kadar)."""
     k = _Kalem(BW, BH)
     c, y = BX, BY
-    k.cokgen([(c - 66, y - 40), (c - 72, y + 60), (c - 82, y + 150), (c - 50, y + 170), (c, y + 160),
-              (c + 50, y + 170), (c + 82, y + 150), (c + 72, y + 60), (c + 66, y - 40)], SAC)
-    k.elips(c - 68, y - 96, c + 68, y + 30, SAC)
+    k.elips(c - 70, y - 104, c + 70, y + 40, SAC)
+    k.cokgen(_egri((c - 68, y - 30), (c - 84, y + 80), (c - 80, y + 160))
+             + _egri((c - 80, y + 160), (c, y + 190), (c + 80, y + 160))
+             + _egri((c + 80, y + 160), (c + 84, y + 80), (c + 68, y - 30)), SAC)
+    k.cizgi(_egri((c - 74, y + 20), (c - 82, y + 100), (c - 70, y + 165)), SAC_A, 3)
+    k.cizgi(_egri((c + 74, y + 20), (c + 82, y + 100), (c + 70, y + 165)), SAC_A, 3)
     img = k.bitir()
     if egim:
         img = img.rotate(-egim, resample=Image.BICUBIC, center=(BX, PY))
@@ -193,8 +225,9 @@ def _govde(nefes: int):
               (CX + 56, 900), (CX + 72, 560)], PANTOLON)
     k.kutu(CX - 70, 888, CX - 6, 916, 12, AYAKKABI)
     k.kutu(CX + 6, 888, CX + 70, 916, 12, AYAKKABI)
-    # Boyun
-    k.kutu(CX - 20, 250, CX + 20, sy + 20, 10, TEN_G)
+    # Boyun (cene altinda golge)
+    k.kutu(CX - 15, 236, CX + 15, sy + 20, 8, TEN)
+    k.kutu(CX - 15, 236, CX + 15, 262, 8, TEN_G)
     # Bluz (V yaka)
     k.cokgen([(CX - 50, sy - 2), (CX + 50, sy - 2), (CX + 44, 500), (CX - 44, 500)], vurgu)
     k.cokgen([(CX - 22, sy - 4), (CX + 22, sy - 4), (CX, sy + 40)], TEN_G)
@@ -205,6 +238,12 @@ def _govde(nefes: int):
               (CX + 62, 470), (CX + 74, 580), (CX + 96, 580), (CX + 88, 470), (rx + 10, sy + 60)], CEKET)
     k.elips(sx - 22, sy - 8, sx + 26, sy + 40, CEKET)
     k.elips(rx - 26, sy - 8, rx + 22, sy + 40, CEKET)
+    # Hacim: ceketin dis kenarlari biraz daha koyu
+    koyu = tuple(int(x * 0.82) for x in CEKET)
+    k.cokgen([(sx - 10, sy + 40), (sx + 6, sy + 40), (CX - 70, 470), (CX - 82, 575), (CX - 96, 580),
+              (CX - 88, 470)], koyu)
+    k.cokgen([(rx + 10, sy + 40), (rx - 6, sy + 40), (CX + 70, 470), (CX + 82, 575), (CX + 96, 580),
+              (CX + 88, 470)], koyu)
     # Yakalar
     k.cokgen([(CX - 34, sy - 6), (CX - 14, sy + 120), (CX - 46, sy + 60)], CEKET_A)
     k.cokgen([(CX + 34, sy - 6), (CX + 14, sy + 120), (CX + 46, sy + 60)], CEKET_A)
@@ -279,6 +318,34 @@ class Durum:
     el_sag: str = "rahat"
 
 
+def oran() -> float:
+    """Figurun ekrandaki boyut orani (VIDEO_KARAKTER_BOYUT, varsayilan 0.8)."""
+    return max(0.4, min(1.2, float(getattr(config, "VIDEO_KARAKTER_BOYUT", 0.8))))
+
+
+def boyut() -> tuple[int, int]:
+    o = oran()
+    return int(W * o) // 2 * 2, int(H * o) // 2 * 2
+
+
+def sag_alan() -> int:
+    """Icerigin sagda birakacagi bosluk (figur boyutuna gore)."""
+    return int(SAG_ALAN * oran())
+
+
+def kare_ekran(durum: "Durum") -> Image.Image:
+    """Videoya bindirilecek kare: olceklenmis, siluetin etrafinda yumusak acik hale (koyu zeminde
+    secilsin diye; acik zeminde neredeyse gorunmez)."""
+    img = kare(durum)
+    if boyut() != (W, H):
+        img = img.resize(boyut(), Image.BILINEAR)
+    alfa = img.split()[3]
+    hale = Image.new("RGBA", img.size, (255, 255, 255, 0))
+    hale.putalpha(alfa.filter(ImageFilter.GaussianBlur(3)).point(lambda a: min(255, a) * 70 // 255))
+    hale.alpha_composite(img)
+    return hale
+
+
 def kare(durum: Durum) -> Image.Image:
     """Tek bir kareyi (W x H, RGBA) birlestirir."""
     tuval = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -312,7 +379,8 @@ def golgeli(img: Image.Image) -> Image.Image:
 def konum() -> tuple[int, int]:
     """Figur tuvalinin videodaki sol ust kosesi: govde sag altta, ayaklar alt kenara yakin."""
     from services.video_builder import GENISLIK, YUKSEKLIK
-    return GENISLIK - 170 - CX, YUKSEKLIK - 20 - 916
+    o = oran()
+    return int(GENISLIK - 150 * o - CX * o), int(YUKSEKLIK - 24 - 916 * o)
 
 
 def _yumusak(x: float) -> float:

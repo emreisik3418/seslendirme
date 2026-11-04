@@ -465,7 +465,7 @@ def _figurlu_video(ffmpeg, liste, tum_ses, sahne_baslari, cumle_baslari, cikis_s
     komut = [
         ffmpeg, "-y", "-loglevel", "error",
         "-f", "concat", "-safe", "0", "-i", str(liste),
-        "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{figur.W}x{figur.H}", "-r", str(figur.FPS),
+        "-f", "rawvideo", "-pix_fmt", "rgba", "-s", "{}x{}".format(*figur.boyut()), "-r", str(figur.FPS),
         "-i", "pipe:0",
         "-i", str(tum_ses),
         "-filter_complex",
@@ -478,7 +478,7 @@ def _figurlu_video(ffmpeg, liste, tum_ses, sahne_baslari, cumle_baslari, cikis_s
         islem = subprocess.Popen(komut, stdin=subprocess.PIPE, stderr=hata)
         try:
             for durum in figur.animasyon(halleri, siddet, sahne_baslari, cumle_baslari):
-                islem.stdin.write(figur.kare(durum).tobytes())
+                islem.stdin.write(figur.kare_ekran(durum).tobytes())
         except BrokenPipeError:
             pass
         finally:
@@ -530,7 +530,7 @@ class _karakter_alani:
         global SAG_BOSLUK
         if self.acik:
             from services import figur, karakter
-            SAG_BOSLUK = karakter.GEN + 40 if _ozel_karakter() else figur.SAG_ALAN
+            SAG_BOSLUK = karakter.GEN + 40 if _ozel_karakter() else figur.sag_alan()
 
     def __exit__(self, *a):
         global SAG_BOSLUK

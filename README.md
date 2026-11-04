@@ -91,7 +91,8 @@ animasyonlu bir kadın sunucu gösterilir:
 - Konuşurken cümle başlarında anlatma, gösterme ve açık el hareketleri yapar; uzun konuşmalarda da
   5 saniyeden fazla hareketsiz kalmaz, elleri vurgularla hafifçe hareket eder.
 - Nefes alır gibi hafifçe yükselip alçalır, salınır, konuşurken başını hafifçe eğip sallar.
-İçerik ve altyazı figürün solundaki alana yerleşir. Tamamen yerelde üretilir, ek servis gerekmez.
+İçerik ve altyazı figürün solundaki alana yerleşir. Boyutu `VIDEO_KARAKTER_BOYUT` ile ayarlanır (varsayılan 0.8).
+Tamamen yerelde üretilir, ek servis gerekmez.
 
 Kendi karakterinizi kullanmak için `.env` içinde `KARAKTER_KLASORU` ile şeffaf arka planlı PNG'lerin bulunduğu
 klasörü verin: `kapali.png`, `yarim.png`, `acik.png` (ağız halleri, zorunlu) ve isteğe bağlı `kirpik.png`.

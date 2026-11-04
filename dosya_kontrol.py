@@ -11,7 +11,7 @@ CIKTI_KLASORU IZLE_ARALIK IZLE_BEKLEME IZLE_HEDEF_KLASORU IZLE_KLASORU IZLE_KURA
 KARAKTER_KLASORU KURALLAR_DOSYASI LLM_APP_NAME LLM_PARALEL LLM_TIMEOUT LLM_TOKEN LLM_URL
 PROJE_KLASORU TTS_BEKLEME TTS_KEY TTS_LANG TTS_LEXICON TTS_OUTPUT_FORMAT TTS_RETRY TTS_TIMEOUT
 TTS_URL TTS_VOICE UYARILAR VERIFY_SSL VIDEO_ACCENT VIDEO_ALTYAZI VIDEO_BG VIDEO_BG2 VIDEO_FFMPEG
-VIDEO_FONT VIDEO_FONT_BOLD VIDEO_KARAKTER VIDEO_LOGO VIDEO_LOGO_ZEMIN VIDEO_SAYFA_NO VIDEO_SUNUM
+VIDEO_FONT VIDEO_FONT_BOLD VIDEO_KARAKTER VIDEO_KARAKTER_BOYUT VIDEO_LOGO VIDEO_LOGO_ZEMIN VIDEO_SAYFA_NO VIDEO_SUNUM
 """.split()
 
 # Modul -> icinde bulunmasi gereken isimler
@@ -23,7 +23,7 @@ GEREKLI_MODULLER = {
     "services.ssml_tools": ["etiketsiz", "ssml_onar", "bolumlere_ayir"],
     "services.tts_client": ["TTSHatasi", "dosya_uzantisi", "seslendir"],
     "services.karakter": ["sprite_seti", "agiz_halleri", "ses_siddeti", "konum"],
-    "services.figur": ["animasyon", "kare", "konum", "SAG_ALAN"],
+    "services.figur": ["animasyon", "kare", "kare_ekran", "boyut", "sag_alan", "konum"],
     "services.video_builder": ["VideoHatasi", "pdf_videosu_olustur", "video_olustur", "SAG_BOSLUK"],
     "services.sunum_cizim": ["sunum_slayti", "SunumCizici"],
 }

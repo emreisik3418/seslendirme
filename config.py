@@ -107,6 +107,10 @@ VIDEO_LOGO_ZEMIN = (os.getenv("VIDEO_LOGO_ZEMIN") or "otomatik").strip().lower()
 VIDEO_FONT = os.getenv("VIDEO_FONT", "")             # bos: Segoe UI / Arial
 VIDEO_FONT_BOLD = os.getenv("VIDEO_FONT_BOLD", "")
 VIDEO_KARAKTER = _bool("VIDEO_KARAKTER", False)      # sag altta konusan 2D sunucu karakteri
+try:
+    VIDEO_KARAKTER_BOYUT = float(os.getenv("VIDEO_KARAKTER_BOYUT", "0.8"))  # 0.4 - 1.2
+except ValueError:
+    VIDEO_KARAKTER_BOYUT = 0.8
 VIDEO_SAYFA_NO = _bool("VIDEO_SAYFA_NO", False)      # sag ustte sayfa numarasi
 VIDEO_SUNUM = _bool("VIDEO_SUNUM", True)            # PDF modunda gosterge kartlarini yeniden ciz
 VIDEO_ALTYAZI = _bool("VIDEO_ALTYAZI", True)        # arayuzdeki "Altyazi goster" varsayilani
