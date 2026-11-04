@@ -232,8 +232,8 @@ altyazi_goster = t1.toggle(
 )
 karakter_goster = t2.toggle(
     "Konuşan karakter", value=config.VIDEO_KARAKTER,
-    help="Sağ alt köşede ağzı seslendirmeyle senkron hareket eden bir sunucu karakteri gösterilir; "
-         "içerik sola kayar.",
+    help="Sağ alt köşede konuşan bir sunucu gösterilir: ağzı seslendirmeyle senkron, yeni sayfada "
+         "içeriği gösterir, anlatırken el hareketleri yapar. İçerik sola kayar.",
 )
 sekme_slayt, sekme_pdf = st.tabs(["🖼️ Slayt modu", "📄 PDF sayfa modu"])
 

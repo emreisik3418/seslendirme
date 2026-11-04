@@ -34,7 +34,8 @@ services/ssml_tools.py       SSML'i <break> noktalarından bölümlere ayırır,
 services/pdf_pages.py        PDF sayfa metinleri ve sayfa görselleri
 services/pdf_kartlar.py      PDF'teki gösterge kartlarını (KPI) okur: etiket, birim, değer, renk, ok, yorum
 services/sunum_cizim.py      Kartları modern sunum slaytı olarak çizer, anlatıma göre vurgular
-services/karakter.py         Konuşan 2D sunucu karakteri ve sesten dudak senkronu
+services/figur.py            Tüm vücut animasyonlu sunucu (jestler, nefes, baş hareketi)
+services/karakter.py         Sesten dudak senkronu; kendi görsel setinizle basit karakter
 services/video_builder.py    Slayt çizimi + FFmpeg ile MP4 ve SRT üretimi
 output/                      Üretilen ses dosyaları (repoya gitmez)
 ```
@@ -83,12 +84,18 @@ satırı vurgulanır. Birden fazla kart varsa kart adı geçtiğinde o karta oda
 sayfalar sayfa görseliyle gösterilir. Kartlar PDF içinde seçilebilir metin olmalıdır (resim olarak gömülü
 tablolar okunamaz).
 
-**Konuşan karakter:** 5. adımdaki "Konuşan karakter" anahtarı açıksa sağ alt köşede 2D bir sunucu karakteri
-gösterilir. Ağzı seslendirmenin şiddetine göre kare kare açılıp kapanır (kapalı / yarı açık / açık), arada göz
-kırpar; içerik ve altyazı karakterin solundaki alana yerleşir. Tamamen yerelde üretilir, ek servis gerekmez.
+**Konuşan karakter:** 5. adımdaki "Konuşan karakter" anahtarı açıksa sağ alt köşede tüm vücudu görünen,
+animasyonlu bir kadın sunucu gösterilir:
+- Ağzı seslendirmenin şiddetine göre kare kare açılıp kapanır, arada göz kırpar.
+- Her yeni sayfa/slayt başında sol tarafa, içeriğe doğru kolunu uzatıp gösterir.
+- Konuşurken cümle başlarında anlatma, gösterme ve açık el hareketleri yapar; uzun konuşmalarda da
+  5 saniyeden fazla hareketsiz kalmaz, elleri vurgularla hafifçe hareket eder.
+- Nefes alır gibi hafifçe yükselip alçalır, salınır, konuşurken başını hafifçe eğip sallar.
+İçerik ve altyazı figürün solundaki alana yerleşir. Tamamen yerelde üretilir, ek servis gerekmez.
+
 Kendi karakterinizi kullanmak için `.env` içinde `KARAKTER_KLASORU` ile şeffaf arka planlı PNG'lerin bulunduğu
-klasörü verin: `kapali.png`, `yarim.png`, `acik.png` (ağız halleri, zorunlu) ve isteğe bağlı `kirpik.png`
-(gözler kapalı). Görseller aynı boyutta olmalı, karakter alt kenara yaslanır. İzleyici `VIDEO_KARAKTER` ayarını kullanır.
+klasörü verin: `kapali.png`, `yarim.png`, `acik.png` (ağız halleri, zorunlu) ve isteğe bağlı `kirpik.png`.
+Bu durumda sabit görselin ağzı hareket eder (el hareketi olmaz). İzleyici `VIDEO_KARAKTER` ayarını kullanır.
 
 Her iki modda:
 - Her bölüm ayrı seslendirilir, böylece geçişler ve altyazılar sesle senkron kalır.

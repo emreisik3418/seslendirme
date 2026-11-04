@@ -154,8 +154,8 @@ def konum() -> tuple[int, int]:
     return GENISLIK - GEN - 30, YUKSEKLIK - YUK + 20   # alt kisim biraz disari tasar (busto)
 
 
-def agiz_halleri(wav_yolu: Path) -> list[str]:
-    """Her video karesi icin sprite adi: ses siddetine gore agiz, arada goz kirpma."""
+def ses_siddeti(wav_yolu: Path) -> list[float]:
+    """Her video karesi icin normallestirilmis ses siddeti (0 sessiz, ~1 yuksek)."""
     import wave
 
     import numpy as np
@@ -167,7 +167,13 @@ def agiz_halleri(wav_yolu: Path) -> list[str]:
     kare = max(1, len(ses) // adim)
     rms = np.array([np.sqrt(np.mean(ses[i * adim:(i + 1) * adim] ** 2) + 1e-9) for i in range(kare)])
     tavan = np.percentile(rms, 95) or 1.0
-    oran = rms / tavan
+    return [float(x) for x in np.minimum(rms / tavan, 1.5)]
+
+
+def agiz_halleri(wav_yolu: Path, oran: list[float] | None = None) -> list[str]:
+    """Her video karesi icin sprite adi: ses siddetine gore agiz, arada goz kirpma."""
+    if oran is None:
+        oran = ses_siddeti(wav_yolu)
 
     halleri, ayni = [], 0
     for i, o in enumerate(oran):

@@ -364,8 +364,12 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True,
         # 2) Kareler
         bildir(0.65, "Kareler çiziliyor")
         kareler, srt, zaman, k = [], [], 0.0, 0
+        sahne_baslari, cumle_baslari, onceki_sahne = [], [], None   # karakterin jestleri icin
         for si, b, sure in plan:
             sahne = sahneler[si]
+            if si != onceki_sahne:
+                sahne_baslari.append(zaman)
+                onceki_sahne = si
             zemin = sahne.zemin
             parcalar = (b.cumleler or [b.metin]) if b else []
             if not parcalar:
@@ -378,6 +382,7 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True,
             harf = sum(len(p) for p in parcalar) or 1
             for p in parcalar:
                 p_sure = sure * len(p) / harf
+                cumle_baslari.append(zaman)
                 k += 1
                 ad = f"kare_{k:05d}.png"
                 if sahne.ciz:
@@ -398,7 +403,16 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True,
         config.CIKTI_KLASORU.mkdir(exist_ok=True)
         ad = f"{on_ek}_{datetime.now():%Y%m%d_%H%M%S}"
         video = config.CIKTI_KLASORU / f"{ad}.mp4"
-        if karakter:
+        cikis_secenekleri = [
+            "-c:a", "aac", "-b:a", "160k",
+            "-shortest", "-movflags", "+faststart",
+            str(video),
+        ]
+        if karakter and not _ozel_karakter():
+            bildir(0.8, "Karakter canlandırılıyor")
+            _figurlu_video(ffmpeg, liste, tum_ses, sahne_baslari, cumle_baslari, cikis_secenekleri)
+            komut = None
+        elif karakter:
             bildir(0.8, "Karakter canlandırılıyor")
             karakter_listesi = _karakter_katmani(tmp, tum_ses)
             x, y = _karakter_konumu()
@@ -421,11 +435,8 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True,
                 "-c:v", "libx264", "-tune", "stillimage", "-preset", "medium", "-crf", "20",
                 "-pix_fmt", "yuv420p", "-r", "25",
             ]
-        _calistir(komut + [
-            "-c:a", "aac", "-b:a", "160k",
-            "-shortest", "-movflags", "+faststart",
-            str(video),
-        ])
+        if komut:
+            _calistir(komut + cikis_secenekleri)
         altyazi = config.CIKTI_KLASORU / f"{ad}.srt"
         altyazi.write_text("\n".join(srt), encoding="utf-8")
 
@@ -434,6 +445,53 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True,
 
 
 # ------------------------------------------------------------ karakter
+def _ozel_karakter() -> bool:
+    """KARAKTER_KLASORU'nda kendi gorsel setiniz varsa onu kullan (agiz animasyonu)."""
+    from services import karakter
+    k = config.KARAKTER_KLASORU
+    return bool(k) and all((Path(k) / f"{a}.png").exists() for a in karakter.AGIZ)
+
+
+def _figurlu_video(ffmpeg, liste, tum_ses, sahne_baslari, cumle_baslari, cikis_secenekleri):
+    """Tum vucut animasyonlu figur: kareler ham RGBA olarak FFmpeg'e akitilir ve bindirilir."""
+    import subprocess
+    import tempfile as _tf
+
+    from services import figur, karakter
+
+    siddet = karakter.ses_siddeti(tum_ses)
+    halleri = karakter.agiz_halleri(tum_ses, siddet)
+    x, y = figur.konum()
+    komut = [
+        ffmpeg, "-y", "-loglevel", "error",
+        "-f", "concat", "-safe", "0", "-i", str(liste),
+        "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{figur.W}x{figur.H}", "-r", str(figur.FPS),
+        "-i", "pipe:0",
+        "-i", str(tum_ses),
+        "-filter_complex",
+        f"[0:v]fps=25,format=rgba[z];[1:v]format=rgba[k];"
+        f"[z][k]overlay={x}:{y}:eof_action=pass,format=yuv420p[v]",
+        "-map", "[v]", "-map", "2:a",
+        "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-r", "25",
+    ] + cikis_secenekleri
+    with _tf.TemporaryFile() as hata:
+        islem = subprocess.Popen(komut, stdin=subprocess.PIPE, stderr=hata)
+        try:
+            for durum in figur.animasyon(halleri, siddet, sahne_baslari, cumle_baslari):
+                islem.stdin.write(figur.kare(durum).tobytes())
+        except BrokenPipeError:
+            pass
+        finally:
+            try:
+                islem.stdin.close()
+            except BrokenPipeError:
+                pass
+        islem.wait()
+        if islem.returncode != 0:
+            hata.seek(0)
+            raise VideoHatasi(f"FFmpeg hatasi:\n{hata.read().decode('utf-8', 'replace')[-1500:]}")
+
+
 def _karakter_konumu() -> tuple[int, int]:
     from services import karakter
     return karakter.konum()
@@ -471,8 +529,8 @@ class _karakter_alani:
     def __enter__(self):
         global SAG_BOSLUK
         if self.acik:
-            from services import karakter
-            SAG_BOSLUK = karakter.GEN + 40
+            from services import figur, karakter
+            SAG_BOSLUK = karakter.GEN + 40 if _ozel_karakter() else figur.SAG_ALAN
 
     def __exit__(self, *a):
         global SAG_BOSLUK

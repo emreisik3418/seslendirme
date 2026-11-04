@@ -22,7 +22,8 @@ GEREKLI_MODULLER = {
     "services.pdf_kartlar": ["sayfa_duzeni"],
     "services.ssml_tools": ["etiketsiz", "ssml_onar", "bolumlere_ayir"],
     "services.tts_client": ["TTSHatasi", "dosya_uzantisi", "seslendir"],
-    "services.karakter": ["sprite_seti", "agiz_halleri", "konum"],
+    "services.karakter": ["sprite_seti", "agiz_halleri", "ses_siddeti", "konum"],
+    "services.figur": ["animasyon", "kare", "konum", "SAG_ALAN"],
     "services.video_builder": ["VideoHatasi", "pdf_videosu_olustur", "video_olustur", "SAG_BOSLUK"],
     "services.sunum_cizim": ["sunum_slayti", "SunumCizici"],
 }

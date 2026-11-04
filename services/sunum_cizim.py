@@ -123,6 +123,27 @@ def _kutucuk(img, kutu, m: Metrik, durum: str, olcek: float, buyuk=False):
     # Sag ust kosede etiketcik: birim ("Mio TL", "%") ve varsa alt etiket ("Randıman Etkisi")
     etiketcikler = [t for t in (m.birim, m.alt_etiket if buyuk else "") if t]
     f_cip = _font(False, max(15, int(22 * olcek)))
+    hedef = int((34 if buyuk else 27) * olcek)
+
+    def etiket_duzeni(cipler):
+        cip_gen = sum(f_cip.getlength(t) + 28 * olcek for t in cipler)
+        gen_ = x1 - ic - cip_gen - (x0 + ic) - 8
+        f = _sigan_font(m.etiket, False, hedef, gen_, 14)
+        satir = [m.etiket]
+        if f.size < hedef * 0.85 and " " in m.etiket:
+            f = _font(False, int(hedef * 0.85))   # cok kuculmek yerine iki satira bol
+            satir = _sar(m.etiket, f, gen_, 2)
+        sigdi = all(f.getlength(t) <= gen_ + 1 for t in satir) and not satir[-1].endswith("…")
+        return f, satir, sigdi
+
+    f_etiket, etiket_satir, sigdi = etiket_duzeni(etiketcikler)
+    if not sigdi and etiketcikler:
+        # Kutucuk dar: etiket metni etiketciklerle cakismasin, once alt etiketi sonra birimi kaldir
+        etiketcikler = etiketcikler[:1]
+        f_etiket, etiket_satir, sigdi = etiket_duzeni(etiketcikler)
+        if not sigdi:
+            etiketcikler = []
+            f_etiket, etiket_satir, _ = etiket_duzeni([])
     cx = x1 - ic
     for t in reversed(etiketcikler):
         w = f_cip.getlength(t) + 18 * olcek
@@ -130,14 +151,6 @@ def _kutucuk(img, kutu, m: Metrik, durum: str, olcek: float, buyuk=False):
                             radius=8, fill=_acik(zemin, 0.09))
         d.text((cx - w + 9 * olcek, y + 3 * olcek), t, font=f_cip, fill=SOLUK)
         cx -= w + 10 * olcek
-    etiket_gen = cx - (x0 + ic) - 8
-    hedef = int((34 if buyuk else 27) * olcek)
-    f_etiket = _sigan_font(m.etiket, False, hedef, etiket_gen, 14)
-    etiket_satir = [m.etiket]
-    if f_etiket.size < hedef * 0.85 and " " in m.etiket:
-        # Cok kuculmek yerine iki satira bol
-        f_etiket = _font(False, int(hedef * 0.9))
-        etiket_satir = _sar(m.etiket, f_etiket, etiket_gen, 2)
     for i, t in enumerate(etiket_satir):
         d.text((x0 + ic, y + i * f_etiket.size * 1.15), t, font=f_etiket, fill=ETIKET_RENGI)
 
