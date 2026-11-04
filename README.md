@@ -35,6 +35,7 @@ services/pdf_pages.py        PDF sayfa metinleri ve sayfa görselleri
 services/pdf_kartlar.py      PDF'teki gösterge kartlarını (KPI) okur: etiket, birim, değer, renk, ok, yorum
 services/sunum_cizim.py      Kartları modern sunum slaytı olarak çizer, anlatıma göre vurgular
 services/figur.py            Tüm vücut animasyonlu sunucu (jestler, nefes, baş hareketi)
+services/maya.py             Maskot Maya: kıvırcık tüylü köpek (dil, kuyruk, kafa yatırma, pati)
 services/karakter.py         Sesten dudak senkronu; kendi görsel setinizle basit karakter
 services/video_builder.py    Slayt çizimi + FFmpeg ile MP4 ve SRT üretimi
 output/                      Üretilen ses dosyaları (repoya gitmez)
@@ -84,8 +85,14 @@ satırı vurgulanır. Birden fazla kart varsa kart adı geçtiğinde o karta oda
 sayfalar sayfa görseliyle gösterilir. Kartlar PDF içinde seçilebilir metin olmalıdır (resim olarak gömülü
 tablolar okunamaz).
 
-**Konuşan karakter:** 5. adımdaki "Konuşan karakter" anahtarı açıksa sağ alt köşede tüm vücudu görünen,
-animasyonlu bir kadın sunucu gösterilir:
+**Konuşan karakter:** 5. adımdaki "Konuşan karakter" anahtarı açıksa sağ alt köşede animasyonlu bir karakter
+gösterilir; iki seçenek var (izleyici için `VIDEO_KARAKTER_TIPI=sunucu|maya`):
+
+*Maya (maskot):* turuncu kapitone yelekli, kıvırcık tüylü köpek. Konuşurken ağzı açılıp dili görünür, kuyruğunu
+sallar, merakla başını yana yatırır, kulakları sallanır; yeni sayfada patisini kaldırıp içeriği gösterir,
+arada mutlu zıplar.
+
+*Sunucu (kadın):* tüm vücudu görünen, animasyonlu kadın sunucu:
 - Ağzı seslendirmenin şiddetine göre kare kare açılıp kapanır, arada göz kırpar.
 - Her yeni sayfa/slayt başında sol tarafa, içeriğe doğru kolunu uzatıp gösterir.
 - Konuşurken cümle başlarında anlatma, gösterme ve açık el hareketleri yapar; uzun konuşmalarda da

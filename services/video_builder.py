@@ -319,7 +319,7 @@ def _sessiz_wav(yol: Path, sure: float) -> float:
 
 
 def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True,
-          karakter: bool = False) -> VideoSonucu:
+          karakter=False) -> VideoSonucu:
     def bildir(oran, mesaj):
         if ilerleme:
             ilerleme(min(oran, 1.0), mesaj)
@@ -408,11 +408,13 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True,
             "-shortest", "-movflags", "+faststart",
             str(video),
         ]
-        if karakter and not _ozel_karakter():
+        tip = karakter_tipi(karakter)
+        if tip in ("sunucu", "maya"):
             bildir(0.8, "Karakter canlandırılıyor")
-            _figurlu_video(ffmpeg, liste, tum_ses, sahne_baslari, cumle_baslari, cikis_secenekleri)
+            _figurlu_video(ffmpeg, liste, tum_ses, sahne_baslari, cumle_baslari, cikis_secenekleri,
+                           _figur_modulu(tip))
             komut = None
-        elif karakter:
+        elif tip == "ozel":
             bildir(0.8, "Karakter canlandırılıyor")
             karakter_listesi = _karakter_katmani(tmp, tum_ses)
             x, y = _karakter_konumu()
@@ -445,6 +447,31 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True,
 
 
 # ------------------------------------------------------------ karakter
+KARAKTERLER = {"sunucu": "Sunucu (kadın)", "maya": "Maya (maskot)", "ozel": "Kendi görselim"}
+
+
+def karakter_tipi(karakter) -> str | None:
+    """karakter: False/None (yok), True (.env'deki VIDEO_KARAKTER_TIPI) veya 'sunucu' / 'maya' / 'ozel'."""
+    if not karakter:
+        return None
+    tip = config.VIDEO_KARAKTER_TIPI if karakter is True else str(karakter)
+    if tip == "ozel" and not _ozel_karakter():
+        tip = "sunucu"      # kendi gorsel seti yoksa varsayilan sunucu
+    return tip if tip in KARAKTERLER else "sunucu"
+
+
+def kullanilabilir_karakterler() -> dict[str, str]:
+    return {k: v for k, v in KARAKTERLER.items() if k != "ozel" or _ozel_karakter()}
+
+
+def _figur_modulu(tip: str):
+    if tip == "maya":
+        from services import maya
+        return maya
+    from services import figur
+    return figur
+
+
 def _ozel_karakter() -> bool:
     """KARAKTER_KLASORU'nda kendi gorsel setiniz varsa onu kullan (agiz animasyonu)."""
     from services import karakter
@@ -452,12 +479,12 @@ def _ozel_karakter() -> bool:
     return bool(k) and all((Path(k) / f"{a}.png").exists() for a in karakter.AGIZ)
 
 
-def _figurlu_video(ffmpeg, liste, tum_ses, sahne_baslari, cumle_baslari, cikis_secenekleri):
-    """Tum vucut animasyonlu figur: kareler ham RGBA olarak FFmpeg'e akitilir ve bindirilir."""
+def _figurlu_video(ffmpeg, liste, tum_ses, sahne_baslari, cumle_baslari, cikis_secenekleri, figur):
+    """Animasyonlu karakter (sunucu veya Maya): kareler ham RGBA olarak FFmpeg'e akitilir ve bindirilir."""
     import subprocess
     import tempfile as _tf
 
-    from services import figur, karakter
+    from services import karakter
 
     siddet = karakter.ses_siddeti(tum_ses)
     halleri = karakter.agiz_halleri(tum_ses, siddet)
@@ -528,9 +555,12 @@ class _karakter_alani:
 
     def __enter__(self):
         global SAG_BOSLUK
-        if self.acik:
-            from services import figur, karakter
-            SAG_BOSLUK = karakter.GEN + 40 if _ozel_karakter() else figur.sag_alan()
+        tip = karakter_tipi(self.acik)
+        if tip == "ozel":
+            from services import karakter
+            SAG_BOSLUK = karakter.GEN + 40
+        elif tip:
+            SAG_BOSLUK = _figur_modulu(tip).sag_alan()
 
     def __exit__(self, *a):
         global SAG_BOSLUK
@@ -538,8 +568,8 @@ class _karakter_alani:
 
 
 def video_olustur(icerik: str, ilerleme=None, altyazi: bool = True,
-                  karakter: bool = False) -> VideoSonucu:
-    """Slayt modu. icerik: LLM'den gelen SSML. ilerleme: fn(oran 0-1, mesaj)"""
+                  karakter=False) -> VideoSonucu:
+    """Slayt modu. karakter: False, True veya 'sunucu' / 'maya' / 'ozel'. icerik: LLM'den gelen SSML. ilerleme: fn(oran 0-1, mesaj)"""
     bolumler = bolumlere_ayir(icerik)
     if not bolumler:
         raise VideoHatasi("Seslendirilecek metin bulunamadi.")
@@ -554,7 +584,7 @@ def video_olustur(icerik: str, ilerleme=None, altyazi: bool = True,
 
 def pdf_videosu_olustur(pdf: bytes, sayfa_ssml: list[str], ilerleme=None,
                         altyazi: bool = True, sunum: bool = False,
-                        karakter: bool = False) -> VideoSonucu:
+                        karakter=False) -> VideoSonucu:
     with _karakter_alani(karakter):
         return _pdf_videosu(pdf, sayfa_ssml, ilerleme, altyazi, sunum, karakter)
 

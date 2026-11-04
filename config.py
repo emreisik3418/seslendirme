@@ -147,3 +147,5 @@ IZLE_SRT = _bool("IZLE_SRT", True)                   # .srt altyazi dosyasini da
 
 # Kendi karakter gorselleriniz (kapali.png, yarim.png, acik.png, kirpik.png); bos: yerlesik karakter
 KARAKTER_KLASORU = _yol("KARAKTER_KLASORU")
+# Varsayilan karakter: sunucu (kadin), maya (maskot) veya ozel (KARAKTER_KLASORU'ndaki gorseller)
+VIDEO_KARAKTER_TIPI = (os.getenv("VIDEO_KARAKTER_TIPI") or ("ozel" if KARAKTER_KLASORU else "sunucu")).strip().lower()

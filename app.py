@@ -24,7 +24,8 @@ from services.pdf_pages import sayfa_gorseli, sayfa_metinleri
 from services.sunum_cizim import sunum_slayti
 from services.ssml_tools import etiketsiz, ssml_onar
 from services.tts_client import TTSHatasi, dosya_uzantisi, seslendir
-from services.video_builder import VideoHatasi, pdf_videosu_olustur, video_olustur
+from services.video_builder import (VideoHatasi, kullanilabilir_karakterler, pdf_videosu_olustur,
+                                    video_olustur)
 
 st.set_page_config(page_title="DocVoice", page_icon="🎙️", layout="wide")
 st.title("🎙️ DocVoice")
@@ -230,11 +231,18 @@ altyazi_goster = t1.toggle(
     "Altyazı göster", value=config.VIDEO_ALTYAZI,
     help="Kapalıyken videoda altyazı görünmez; .srt dosyası yine de ayrıca indirilebilir.",
 )
-karakter_goster = t2.toggle(
+karakter_acik = t2.toggle(
     "Konuşan karakter", value=config.VIDEO_KARAKTER,
-    help="Sağ alt köşede konuşan bir sunucu gösterilir: ağzı seslendirmeyle senkron, yeni sayfada "
-         "içeriği gösterir, anlatırken el hareketleri yapar. İçerik sola kayar.",
+    help="Sağ alt köşede konuşan bir karakter gösterilir: ağzı seslendirmeyle senkron, yeni sayfada "
+         "içeriği gösterir, anlatırken hareket eder. İçerik sola kayar.",
 )
+karakter_goster = False
+if karakter_acik:
+    secenekler = kullanilabilir_karakterler()
+    anahtarlar = list(secenekler)
+    varsayilan = config.VIDEO_KARAKTER_TIPI if config.VIDEO_KARAKTER_TIPI in anahtarlar else anahtarlar[0]
+    karakter_goster = t2.radio("Karakter", anahtarlar, index=anahtarlar.index(varsayilan),
+                               format_func=secenekler.get, horizontal=True)
 sekme_slayt, sekme_pdf = st.tabs(["🖼️ Slayt modu", "📄 PDF sayfa modu"])
 
 with sekme_slayt:

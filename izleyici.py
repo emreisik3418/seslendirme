@@ -333,7 +333,7 @@ def main():
     log.info(f"  Kural seti     : {_kurallar_dosyasi()}")
     log.info(f"  Sunum görünümü : {'açık' if config.VIDEO_SUNUM else 'kapalı'} · "
              f"Altyazı: {'açık' if config.VIDEO_ALTYAZI else 'kapalı'} · "
-             f"Karakter: {'açık' if config.VIDEO_KARAKTER else 'kapalı'}")
+             f"Karakter: {config.VIDEO_KARAKTER_TIPI if config.VIDEO_KARAKTER else 'kapalı'}")
     _yarim_kalanlari_geri_al(klasor)
 
     takip = KopyalamaTakibi()
