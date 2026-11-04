@@ -115,8 +115,13 @@ def _yumusak_golge(k: "_Kalem", cizimler, maske_elips, bulaniklik=7):
     k.d = ImageDraw.Draw(k.img)
 
 
+def _olcekle(img: Image.Image) -> Image.Image:
+    """Bas katmanlarini BAS_OLCEK ile kucultur (donme noktasi orantili olarak tasinir)."""
+    return img.resize((round(img.width * BAS_OLCEK), round(img.height * BAS_OLCEK)), Image.LANCZOS)
+
+
 # Bas katmani yerel tuvali: bas merkezi (BX, BY), boyun donme noktasi (BX, PY)
-BW, BH, BX, BY, PY = 300, 330, 150, 150, 262
+BW, BH, BX, BY, PY = 300, 360, 150, 150, 262
 
 
 @lru_cache(maxsize=128)
@@ -187,7 +192,7 @@ def _bas(agiz: int, goz_kapali: bool, kas: int, egim: int):
     img = k.bitir()
     if egim:
         img = img.rotate(-egim, resample=Image.BICUBIC, center=(BX, PY))
-    return _kirp(img)
+    return _kirp(_olcekle(img))
 
 
 @lru_cache(maxsize=32)
@@ -204,59 +209,107 @@ def _arka_sac(egim: int):
     img = k.bitir()
     if egim:
         img = img.rotate(-egim, resample=Image.BICUBIC, center=(BX, PY))
-    return _kirp(img)
+    return _kirp(_olcekle(img))
+
+
+BAS_OLCEK = 0.9      # bas/boy orani: biraz kucuk bas daha gercekci gorunur
+BOYUN_Y = 283        # bas donme noktasinin (boyun) tuvaldeki yuksekligi
 
 
 def _omuzlar(nefes: int):
-    oy = 300 - nefes
-    return (CX - 82, oy), (CX + 82, oy)
+    """Kol eklem noktalari (omuz basinin merkezi)."""
+    oy = 316 - nefes
+    return (CX - 66, oy), (CX + 66, oy)
+
+
+def _ayna(noktalar):
+    """Sol yarim icin verilen noktalari dikey eksene gore aynalar (sag yarim)."""
+    return [(2 * CX - x, y) for x, y in noktalar]
+
+
+def _maskeli_golge(k: "_Kalem", maske_noktalari, cizimler, bulaniklik=10):
+    """Yumusak golge/isik elipslerini bulaniklastirip verilen cokgenin icinde birakir."""
+    from PIL import ImageChops
+    g = _Kalem(k.img.width // OLCEK, k.img.height // OLCEK, k.ox, k.oy)
+    for x0, y0, x1, y1, renk in cizimler:
+        g.elips(x0, y0, x1, y1, renk)
+    g.img = g.img.filter(ImageFilter.GaussianBlur(bulaniklik * OLCEK))
+    maske = Image.new("L", k.img.size, 0)
+    ImageDraw.Draw(maske).polygon(k._p(maske_noktalari), fill=255)
+    g.img.putalpha(ImageChops.multiply(g.img.split()[3], maske))
+    k.img.alpha_composite(g.img)
+    k.d = ImageDraw.Draw(k.img)
 
 
 @lru_cache(maxsize=8)
 def _govde(nefes: int):
-    """Bacaklar, ayakkabilar, govde (ceket + bluz), boyun. nefes: 0-3 (omuzlar yukselir)."""
+    """Bacaklar, ayakkabilar, boyun, ceket (bel/kalca hatli), bluz. nefes: 0-3 (omuzlar yukselir)."""
     k = _Kalem(W, H)
     vurgu = _r(config.VIDEO_ACCENT)
-    (sx, sy), (rx, ry) = _omuzlar(nefes)
-    # Bacaklar (pantolon) ve ayakkabilar; ust kisim kalcayi doldurur
-    k.kutu(CX - 74, 450, CX + 74, 600, 24, PANTOLON)
-    # Iki bacak tek parca: ic kontur cizgisi olusmasin, aradaki acilim kasiktan baslar
-    k.cokgen([(CX - 72, 560), (CX - 56, 900), (CX - 14, 900), (CX, 650), (CX + 14, 900),
-              (CX + 56, 900), (CX + 72, 560)], PANTOLON)
-    k.kutu(CX - 70, 888, CX - 6, 916, 12, AYAKKABI)
-    k.kutu(CX + 6, 888, CX + 70, 916, 12, AYAKKABI)
-    # Boyun (cene altinda golge)
-    k.kutu(CX - 15, 236, CX + 15, sy + 20, 8, TEN)
-    k.kutu(CX - 15, 236, CX + 15, 262, 8, TEN_G)
-    # Bluz (V yaka)
-    k.cokgen([(CX - 50, sy - 2), (CX + 50, sy - 2), (CX + 44, 500), (CX - 44, 500)], vurgu)
-    k.cokgen([(CX - 22, sy - 4), (CX + 22, sy - 4), (CX, sy + 40)], TEN_G)
-    # Ceket: omuzlardan bele, belde hafif darlik, kalcaya kadar
-    k.cokgen([(sx - 6, sy + 10), (sx + 18, sy - 6), (CX - 34, sy - 6), (CX - 14, sy + 120), (CX - 26, 470),
-              (CX - 62, 470), (CX - 74, 580), (CX - 96, 580), (CX - 88, 470), (sx - 10, sy + 60)], CEKET)
-    k.cokgen([(rx + 6, sy + 10), (rx - 18, sy - 6), (CX + 34, sy - 6), (CX + 14, sy + 120), (CX + 26, 470),
-              (CX + 62, 470), (CX + 74, 580), (CX + 96, 580), (CX + 88, 470), (rx + 10, sy + 60)], CEKET)
-    k.elips(sx - 22, sy - 8, sx + 26, sy + 40, CEKET)
-    k.elips(rx - 26, sy - 8, rx + 22, sy + 40, CEKET)
-    # Hacim: ceketin dis kenarlari biraz daha koyu
-    koyu = tuple(int(x * 0.82) for x in CEKET)
-    k.cokgen([(sx - 10, sy + 40), (sx + 6, sy + 40), (CX - 70, 470), (CX - 82, 575), (CX - 96, 580),
-              (CX - 88, 470)], koyu)
-    k.cokgen([(rx + 10, sy + 40), (rx - 6, sy + 40), (CX + 70, 470), (CX + 82, 575), (CX + 96, 580),
-              (CX + 88, 470)], koyu)
-    # Yakalar
-    k.cokgen([(CX - 34, sy - 6), (CX - 14, sy + 120), (CX - 46, sy + 60)], CEKET_A)
-    k.cokgen([(CX + 34, sy - 6), (CX + 14, sy + 120), (CX + 46, sy + 60)], CEKET_A)
-    # Ceket onunde bel ve dugme
-    k.elips(CX - 5, sy + 150, CX + 5, sy + 160, _acik(CEKET, 0.3))
-    # Rozet
-    k.elips(CX + 48, sy + 70, CX + 62, sy + 84, vurgu)
+    n = nefes
+    koyu = tuple(int(x * 0.78) for x in CEKET)
+
+    # --- Pantolon: iki bacak tek parca (ic kontur olusmasin), hafif daralan paca
+    pantolon = [(CX - 66, 520), (CX - 60, 700), (CX - 50, 884), (CX - 14, 884), (CX - 6, 700),
+                (CX, 640), (CX + 6, 700), (CX + 14, 884), (CX + 50, 884), (CX + 60, 700), (CX + 66, 520)]
+    k.cokgen(pantolon, PANTOLON)
+    _maskeli_golge(k, pantolon, [(CX - 90, 560, CX - 50, 900, (0, 0, 0, 60)),
+                                 (CX + 50, 560, CX + 90, 900, (0, 0, 0, 60)),
+                                 (CX - 14, 630, CX + 14, 900, (0, 0, 0, 70))], 8)
+    for yon in (-1, 1):   # utu cizgisi
+        k.cizgi([(CX + yon * 34, 600), (CX + yon * 32, 880)], _acik(PANTOLON, 0.08), 1.5)
+    # --- Topuklu, sivri burunlu ayakkabilar
+    for yon in (-1, 1):
+        k.cokgen([(CX + yon * 52, 876), (CX + yon * 14, 876), (CX + yon * 12, 898), (CX + yon * 24, 914),
+                  (CX + yon * 42, 917), (CX + yon * 56, 908)], AYAKKABI)
+        k.yay((CX + yon * 30 - 10, 882, CX + yon * 30 + 10, 896), 200, 340, (70, 70, 80), 2)
+
+    # --- Boyun (cene alti golgesi)
+    k.kutu(CX - 14, 236, CX + 14, 300 - n, 8, TEN)
+    k.kutu(CX - 14, 236, CX + 14, 258, 8, TEN_G)
+
+    # --- Ceket silueti: kavisli omuz hatti, bel daralmasi, kalca genislemesi
+    sol = (_egri((CX - 22, 288 - n), (CX - 50, 288 - n), (CX - 74, 298 - n))
+           + _egri((CX - 74, 298 - n), (CX - 90, 304 - n), (CX - 86, 334 - n))
+           + _egri((CX - 86, 334 - n), (CX - 80, 380), (CX - 60, 458))
+           + _egri((CX - 60, 458), (CX - 64, 520), (CX - 78, 562))
+           + _egri((CX - 78, 562), (CX - 52, 574), (CX - 24, 574)))
+    # Ust kenar boynun altinda V yakaya iner: boyun uzerinde duz ceket cizgisi olusmaz
+    ceket = sol + [(CX, 456)] + list(reversed(_ayna(sol))) + [(CX + 16, 290 - n), (CX, 334 - n), (CX - 16, 290 - n)]
+    k.cokgen(ceket, CEKET)
+    # Ceketin dugme altindaki acikligi: pantolon gorunur
+    k.cokgen([(CX, 456), (CX - 24, 575), (CX + 24, 575)], PANTOLON)
+    # Kumas hacmi: yanlar koyu, gogus ortasi hafif acik
+    _maskeli_golge(k, ceket, [(CX - 120, 300, CX - 60, 600, koyu + (200,)),
+                              (CX + 60, 300, CX + 120, 600, koyu + (200,)),
+                              (CX - 50, 330, CX + 50, 430, _acik(CEKET, 0.18) + (90,))], 14)
+
+    # --- Bluz (V yaka) ve yaka icindeki ten
+    k.cokgen([(CX - 30, 286 - n), (CX + 30, 286 - n), (CX, 452)], vurgu)
+    _maskeli_golge(k, [(CX - 30, 286 - n), (CX + 30, 286 - n), (CX, 452)],
+                   [(CX - 30, 380, CX + 30, 470, (0, 0, 0, 70))], 8)
+    k.cokgen([(CX - 16, 282 - n), (CX + 16, 282 - n), (CX, 334 - n)], TEN)
+
+    # --- Yakalar (centikli)
+    yaka = [(CX - 30, 286 - n), (CX - 46, 296 - n), (CX - 56, 336 - n), (CX - 42, 344 - n),
+            (CX - 8, 450), (CX - 2, 452)]
+    for noktalar in (yaka, _ayna(yaka)):
+        k.cokgen(noktalar, CEKET_A)
+    k.cizgi([(CX - 26, 300 - n), (CX - 2, 452)], koyu, 1.5)
+    k.cizgi([(CX + 26, 300 - n), (CX + 2, 452)], koyu, 1.5)
+
+    # --- Dugme, cep kapaklari, rozet
+    k.elips(CX - 6, 452, CX + 6, 464, koyu)
+    k.elips(CX - 3, 455, CX + 3, 461, _acik(CEKET, 0.35))
+    for yon in (-1, 1):
+        k.cizgi([(CX + yon * 30, 512), (CX + yon * 62, 508)], koyu, 2.5)
+    k.elips(CX + 46, 352 - n, CX + 58, 364 - n, vurgu)
     return _kirp(k.bitir())
 
 
 def _kol_noktalari(omuz, a1, a2, yon):
     """yon: -1 ekranin solundaki kol, +1 sagdaki. Doner: (dirsek, bilek)."""
-    UST, ON = 132, 118
+    UST, ON = 136, 120
 
     def v(aci, boy):
         r = math.radians(aci)
@@ -267,38 +320,100 @@ def _kol_noktalari(omuz, a1, a2, yon):
     return dirsek, (dirsek[0] + dx, dirsek[1] + dy)
 
 
+def _incelen(a, b, wa, wb):
+    """a'dan b'ye, a'da wa b'de wb kalinliginda yumusak uzuv cokgeni."""
+    ux, uy = b[0] - a[0], b[1] - a[1]
+    boy = math.hypot(ux, uy) or 1
+    px, py = -uy / boy, ux / boy
+    return [(a[0] + px * wa / 2, a[1] + py * wa / 2), (b[0] + px * wb / 2, b[1] + py * wb / 2),
+            (b[0] - px * wb / 2, b[1] - py * wb / 2), (a[0] - px * wa / 2, a[1] - py * wa / 2)]
+
+
+def _el(k: "_Kalem", bilek, u, v, el):
+    """El cizimi. u: on kol yonu (birim), v: basparmak tarafi (birim)."""
+    def P(a, b):
+        return (bilek[0] + u[0] * a + v[0] * b, bilek[1] + u[1] * a + v[1] * b)
+
+    if el == "isaret":     # acik avuc, parmaklar gosterme yonunde uzanmis, basparmak ayrik
+        avuc = [P(0, -13), P(0, 13), P(18, 15), P(44, 11), P(52, 4), P(52, -4), P(44, -11), P(16, -14)]
+        basp = (P(8, 11), P(20, 27))
+        ayrim = [((26, -5), (49, -5)), ((26, 0), (51, 0)), ((26, 5), (49, 5))]
+    elif el == "acik":     # avuc karsiya donuk, parmaklar acik
+        avuc = [P(0, -13), P(0, 13), P(16, 16), P(40, 13), P(48, 4), P(48, -6), P(40, -13), P(16, -15)]
+        basp = (P(6, 12), P(14, 31))
+        ayrim = [((24, -6), (45, -7)), ((24, 0), (47, 0)), ((24, 6), (44, 7))]
+    else:                  # rahat: parmaklar hafif kivrik
+        avuc = [P(0, -12), P(0, 12), P(16, 14), P(32, 11), P(38, 3), P(37, -6), P(30, -13), P(14, -14)]
+        basp = (P(6, 10), P(20, 17))
+        ayrim = [((22, -3), (34, -2))]
+    k.cokgen(avuc, TEN)
+    k.kapsul(basp[0], basp[1], 10, TEN)
+    for (a0, b0), (a1, b1) in ayrim:
+        k.cizgi([P(a0, b0), P(a1, b1)], TEN_G, 1.6)
+    # Avucun alt kenarinda hafif golge
+    k.cizgi([P(4, -12), P(30, -12)], TEN_G, 2)
+
+
 @lru_cache(maxsize=1024)
 def _kol(nefes, taraf, a1, a2, el):
-    """Tek kol, sadece kapladigi alan kadar yerel tuvalde. Doner: (gorsel, (x, y)) tuval koordinatinda."""
+    """Tek kol (omuz basi + ust kol + dirsek + on kol + manset + el), yerel tuvalde.
+    Omuz basi kolun parcasidir ve kolla birlikte doner; govdenin omuz hattiyla dikissiz birlesir.
+    Doner: (gorsel, (x, y)) tuval koordinatinda."""
     omuz = _omuzlar(nefes)[0 if taraf == "sol" else 1]
     yon = -1 if taraf == "sol" else 1
     dirsek, bilek = _kol_noktalari(omuz, a1, a2, yon)
-    pay = 70
+    pay = 80
     xs, ys = [omuz[0], dirsek[0], bilek[0]], [omuz[1], dirsek[1], bilek[1]]
     ox, oy = min(xs) - pay, min(ys) - pay
     k = _Kalem(max(xs) - ox + pay, max(ys) - oy + pay, ox, oy)
+    vurgu = _r(config.VIDEO_ACCENT)
+    koyu = tuple(int(x * 0.62) for x in CEKET)
+    golge = tuple(int(x * 0.82) for x in CEKET)
 
-    k.kapsul(omuz, dirsek, 40, CEKET)
-    k.kapsul(dirsek, bilek, 34, CEKET)
+    W_OMUZ, W_DIRSEK, W_BILEK = 44, 33, 27
+    # Gecis noktasi: omuzdan biraz asagisi (kontur buradan baslar, omuz basi govdeyle birlesir)
+    t = 0.38
+    gecis = (omuz[0] + (dirsek[0] - omuz[0]) * t, omuz[1] + (dirsek[1] - omuz[1]) * t)
+    w_gecis = W_OMUZ + (W_DIRSEK - W_OMUZ) * t
+
+    # 1) Ince koyu kontur: kol govdenin onune geldiginde ayrilsin (omuz basinda yok)
+    k.cokgen(_incelen(gecis, dirsek, w_gecis, W_DIRSEK + 4), koyu)   # kontur yumusakca baslar
+    k.elips(dirsek[0] - W_DIRSEK / 2 - 2, dirsek[1] - W_DIRSEK / 2 - 2,
+            dirsek[0] + W_DIRSEK / 2 + 2, dirsek[1] + W_DIRSEK / 2 + 2, koyu)
+    k.cokgen(_incelen(dirsek, bilek, W_DIRSEK + 4, W_BILEK + 4), koyu)
+
+    # 2) Kol (ceket kumasi)
+    k.cokgen(_incelen(omuz, dirsek, W_OMUZ, W_DIRSEK), CEKET)
+    k.elips(dirsek[0] - W_DIRSEK / 2, dirsek[1] - W_DIRSEK / 2,
+            dirsek[0] + W_DIRSEK / 2, dirsek[1] + W_DIRSEK / 2, CEKET)
+    k.cokgen(_incelen(dirsek, bilek, W_DIRSEK, W_BILEK), CEKET)
+    # Kumas golgesi: kolun dis kenari boyunca
+    ust = _incelen(gecis, dirsek, w_gecis, W_DIRSEK)
+    on = _incelen(dirsek, bilek, W_DIRSEK, W_BILEK)
+    k.cokgen([ust[0], ust[1], ((ust[1][0] + ust[2][0]) / 2 * 0.3 + ust[1][0] * 0.7,
+                                (ust[1][1] + ust[2][1]) / 2 * 0.3 + ust[1][1] * 0.7),
+              ((ust[0][0] + ust[3][0]) / 2 * 0.3 + ust[0][0] * 0.7,
+               (ust[0][1] + ust[3][1]) / 2 * 0.3 + ust[0][1] * 0.7)], golge)
+    k.cokgen([on[0], on[1], ((on[1][0] + on[2][0]) / 2 * 0.3 + on[1][0] * 0.7,
+                              (on[1][1] + on[2][1]) / 2 * 0.3 + on[1][1] * 0.7),
+              ((on[0][0] + on[3][0]) / 2 * 0.3 + on[0][0] * 0.7,
+               (on[0][1] + on[3][1]) / 2 * 0.3 + on[0][1] * 0.7)], golge)
+
+    # 3) Omuz basi: govdenin yuvarlak omuz hattini tamamlar, kolla doner
+    k.elips(omuz[0] - 23, omuz[1] - 15, omuz[0] + 23, omuz[1] + 25, CEKET)
+
+    # 4) Manset: ceket kol ucu + bluz manseti
     aci = math.atan2(bilek[1] - dirsek[1], bilek[0] - dirsek[0])
-    ux, uy = math.cos(aci), math.sin(aci)
-    manset = (bilek[0] - ux * 4, bilek[1] - uy * 4)
-    k.kapsul((manset[0] - ux * 6, manset[1] - uy * 6), manset, 30, _acik(CEKET, 0.15))
-    merkez = (bilek[0] + ux * 16, bilek[1] + uy * 16)
-    if el == "isaret":
-        # Acik avuc, parmaklar ileri (gosterme yonunde), basparmak yukarida
-        k.elips(merkez[0] - 17, merkez[1] - 15, merkez[0] + 17, merkez[1] + 15, TEN)
-        uc = (merkez[0] + ux * 26, merkez[1] + uy * 26)
-        k.kapsul(merkez, uc, 24, TEN)
-        for kay in (-8, 0, 8):   # parmak ayrimlari
-            px, py = merkez[0] + ux * 14 - uy * kay, merkez[1] + uy * 14 + ux * kay
-            k.cizgi([(px, py), (px + ux * 14, py + uy * 14)], TEN_G, 1.5)
-        k.kapsul((merkez[0] - uy * 10, merkez[1] - 10), (merkez[0] + ux * 8 - uy * 6, merkez[1] - 24), 11, TEN)
-    elif el == "acik":
-        k.elips(merkez[0] - 16, merkez[1] - 18, merkez[0] + 16, merkez[1] + 16, TEN)
-        k.kapsul(merkez, (merkez[0] + yon * 14, merkez[1] - 20), 9, TEN)
-    else:
-        k.elips(merkez[0] - 15, merkez[1] - 16, merkez[0] + 15, merkez[1] + 18, TEN)
+    u = (math.cos(aci), math.sin(aci))
+    # Basparmak tarafi: rahatken govdeye donuk; gosterirken/acik elde avuc onde, basparmak yukarida
+    ic = (u[1], -u[0]) if yon == -1 else (-u[1], u[0])
+    v = ic if el == "rahat" else (-ic[0], -ic[1])
+    kol_ucu = (bilek[0] - u[0] * 8, bilek[1] - u[1] * 8)
+    k.cokgen(_incelen(kol_ucu, bilek, W_BILEK + 3, W_BILEK + 4), golge)
+    k.cokgen(_incelen(bilek, (bilek[0] + u[0] * 4, bilek[1] + u[1] * 4), W_BILEK - 3, W_BILEK - 5), vurgu)
+    el_kok = (bilek[0] + u[0] * 4, bilek[1] + u[1] * 4)
+    _el(k, el_kok, u, v, el)
+
     img, (x, y) = _kirp(k.bitir())
     return img, (int(ox) + x, int(oy) + y)
 
@@ -350,7 +465,9 @@ def kare(durum: Durum) -> Image.Image:
     """Tek bir kareyi (W x H, RGBA) birlestirir."""
     tuval = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     ox = durum.salinim
-    (bx, by) = (CX - BX + ox, 300 - durum.nefes - 22 - PY)   # boyun donme noktasi omuz hizasinin ustunde
+    # Bas katmanlari olceklendigi icin donme noktasi da olcekli: boyun noktasina hizala
+    bx = round(CX + ox - BX * BAS_OLCEK)
+    by = round(BOYUN_Y - durum.nefes - PY * BAS_OLCEK)
 
     sac, (sx, sy) = _arka_sac(durum.egim)
     tuval.alpha_composite(sac, (bx + sx, by + sy))
@@ -464,7 +581,7 @@ def animasyon(halleri: list[str], siddet: list[float], sahne_baslari: list[float
                 a2 += 4 * w * math.sin(2 * math.pi * 0.9 * t + faz)
             # Konusurken jest yoksa eller vurgularla hafifce hareket eder
             a2 -= (1 - w) * 26 * enerji * (0.6 + 0.4 * math.sin(2 * math.pi * 0.7 * t + faz))
-            return (int(round(a1 / 3) * 3), int(round(a2 / 4) * 4))   # onbellek icin yuvarla
+            return (int(round(a1 / 4) * 4), int(round(a2 / 5) * 5))   # onbellek icin yuvarla
 
         el = EL[jest] if (jest and w > 0.5) else "rahat"
         egim = 2.2 * math.sin(2 * math.pi * t / 5.3) + 2.5 * enerji * math.sin(2 * math.pi * 2.1 * t)
