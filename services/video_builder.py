@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 import config
 from services.ssml_tools import Bolum, bolumlere_ayir
@@ -224,7 +224,8 @@ def altyazi_ekle(slayt: Image.Image, metin: str, ilerleme: float) -> Image.Image
     katman = Image.new("RGBA", img.size, (0, 0, 0, 0))
     d = ImageDraw.Draw(katman)
 
-    font = _font(False, 42)
+    kutulu = config.VIDEO_ALTYAZI_STIL == "kutu"
+    font = _font(not kutulu, 46 if not kutulu else 42)
     alan = GENISLIK - SAG_BOSLUK          # altyazi karakterin solundaki alanda ortalanir
     satirlar = _sar(metin, font, min(1500, alan - 140), 2) if metin.strip() else []
     satir_y = 58
@@ -233,14 +234,24 @@ def altyazi_ekle(slayt: Image.Image, metin: str, ilerleme: float) -> Image.Image
         genis = max(font.getlength(s) for s in satirlar) + 80
         x0 = (alan - genis) / 2
         y0 = YUKSEKLIK - 70 - kutu_y
-        d.rounded_rectangle([x0, y0, x0 + genis, y0 + kutu_y], radius=18, fill=(0, 0, 0, 215))
+        if kutulu:
+            d.rounded_rectangle([x0, y0, x0 + genis, y0 + kutu_y], radius=18, fill=(0, 0, 0, 215))
+        else:
+            # Kutusuz: yazinin arkasinda yumusak, dar bir golge (zeminde siyah bant olusmaz)
+            golge = Image.new("RGBA", img.size, (0, 0, 0, 0))
+            dg = ImageDraw.Draw(golge)
+            for i, s in enumerate(satirlar):
+                dg.text(((alan - font.getlength(s)) / 2 + 2, y0 + 25 + i * satir_y), s,
+                        font=font, fill=(0, 0, 0, 170))
+            katman.alpha_composite(golge.filter(ImageFilter.GaussianBlur(4)))
         for i, s in enumerate(satirlar):
-            d.text(((alan - font.getlength(s)) / 2, y0 + 22 + i * satir_y), s,
-                   font=font, fill=(255, 255, 255))
+            d.text(((alan - font.getlength(s)) / 2, y0 + 22 + i * satir_y), s, font=font,
+                   fill=(255, 255, 255), stroke_width=0 if kutulu else 2, stroke_fill=(0, 0, 0))
 
-    # En altta ilerleme cubugu
-    d.rectangle([0, YUKSEKLIK - 8, GENISLIK, YUKSEKLIK], fill=(255, 255, 255, 30))
-    d.rectangle([0, YUKSEKLIK - 8, int(GENISLIK * ilerleme), YUKSEKLIK], fill=_renk(config.VIDEO_ACCENT) + (255,))
+    # En altta ilerleme cubugu (sadece dolu kisim; zeminde bant birakmaz)
+    if config.VIDEO_ILERLEME:
+        d.rectangle([0, YUKSEKLIK - 6, int(GENISLIK * ilerleme), YUKSEKLIK],
+                    fill=_renk(config.VIDEO_ACCENT) + (255,))
     return Image.alpha_composite(img, katman).convert("RGB")
 
 
@@ -278,12 +289,39 @@ def _kenar_rengi(img: Image.Image) -> tuple:
     return max(set(pikseller), key=pikseller.count)
 
 
+def _kenarlari_kirp(sayfa: Image.Image, renk: tuple) -> Image.Image:
+    """Sayfanin etrafindaki bos (kenar rengindeki) alani kirpar, icerigin cevresinde az pay birakir."""
+    from PIL import ImageChops
+    kucuk = sayfa.convert("RGB")
+    olcek = 4 if min(kucuk.size) > 800 else 1
+    kucuk = kucuk.resize((kucuk.width // olcek, kucuk.height // olcek))
+    fark = ImageChops.difference(kucuk, Image.new("RGB", kucuk.size, renk)).convert("L")
+    kutu = fark.point(lambda v: 255 if v > 18 else 0).getbbox()
+    if not kutu:
+        return sayfa
+    x0, y0, x1, y1 = (v * olcek for v in kutu)
+    pay = int(max(x1 - x0, y1 - y0) * 0.04)
+    x0, y0 = max(0, x0 - pay), max(0, y0 - pay)
+    x1, y1 = min(sayfa.width, x1 + pay), min(sayfa.height, y1 + pay)
+    if (x1 - x0) * (y1 - y0) > 0.92 * sayfa.width * sayfa.height:
+        return sayfa      # zaten dolu sayfa
+    return sayfa.crop((x0, y0, x1, y1))
+
+
 def sayfa_zemini(sayfa: Image.Image, sira: int, toplam: int, altyazi_alani: bool = True) -> Image.Image:
     """PDF sayfasini ekrana olabildigince buyuk yerlestirir. PDF'ler kendi logosu ve tasarimiyla
     geldigi icin ek arka plan veya logo eklenmez; bos kalan alan sayfanin kendi kenar rengiyle dolar.
-    Altyazi aciksa sayfa, altyazi bandinin ustunde kalacak sekilde yerlestirilir."""
-    zemin = Image.new("RGB", (GENISLIK, YUKSEKLIK), _kenar_rengi(sayfa))
-    alan_h = SAYFA_ALANI_ALT if altyazi_alani else YUKSEKLIK
+
+    VIDEO_PDF_TAM_EKRAN (varsayilan acik): sayfanin bos kenarlari kirpilir ve icerik tum ekrani
+    kullanir; altyazi sayfanin uzerine yazilir. Kapaliysa sayfa tam haliyle, altyazi aciksa
+    altyazi bandinin ustunde gosterilir."""
+    renk = _kenar_rengi(sayfa)
+    zemin = Image.new("RGB", (GENISLIK, YUKSEKLIK), renk)
+    if config.VIDEO_PDF_TAM_EKRAN:
+        sayfa = _kenarlari_kirp(sayfa, renk)
+        alan_h = YUKSEKLIK
+    else:
+        alan_h = SAYFA_ALANI_ALT if altyazi_alani else YUKSEKLIK
     alan_w = GENISLIK - SAG_BOSLUK
     oran = min(alan_w / sayfa.width, alan_h / sayfa.height)   # en-boy oranini koruyarak sigdir
     on = sayfa.resize((round(sayfa.width * oran), round(sayfa.height * oran)), Image.LANCZOS)

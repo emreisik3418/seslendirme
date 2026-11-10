@@ -108,6 +108,9 @@ Bu durumda sabit görselin ağzı hareket eder (el hareketi olmaz). İzleyici `V
 Her iki modda:
 - Her bölüm ayrı seslendirilir, böylece geçişler ve altyazılar sesle senkron kalır.
 - Altyazı isteğe bağlıdır ("Altyazı göster" anahtarı; varsayılanı `VIDEO_ALTYAZI`). Kapalıyken de `.srt` dosyası üretilir.
+- PDF sayfalarının boş kenarları kırpılır ve içerik tüm ekranı kullanır (`VIDEO_PDF_TAM_EKRAN`, varsayılan açık);
+  altyazı sayfanın üzerine yazılır. Kapatılırsa sayfa tam haliyle, altyazı bandının üstünde gösterilir.
+- Altyazı kutusuz, konturlu beyaz yazıdır (`VIDEO_ALTYAZI_STIL=kutusuz`); eski siyah kutu için `kutu`.
 - Altyazılarda noktalama işaretleri gösterilmez (sayı içindeki ayraçlar ve kelime içi kesme işareti korunur).
 - Çıktı: `output/` klasörüne `.mp4` (1920x1080) ve `.srt` altyazı dosyası.
 - FFmpeg, `imageio-ffmpeg` paketiyle pip üzerinden gelir; ayrıca kurulum gerekmez.

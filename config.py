@@ -111,7 +111,10 @@ try:
     VIDEO_KARAKTER_BOYUT = float(os.getenv("VIDEO_KARAKTER_BOYUT", "0.8"))  # 0.4 - 1.2
 except ValueError:
     VIDEO_KARAKTER_BOYUT = 0.8
-VIDEO_SAYFA_NO = _bool("VIDEO_SAYFA_NO", False)      # sag ustte sayfa numarasi
+VIDEO_SAYFA_NO = _bool("VIDEO_SAYFA_NO", False)
+VIDEO_PDF_TAM_EKRAN = _bool("VIDEO_PDF_TAM_EKRAN", True)   # PDF kenarlarini kirp, tum ekrani kullan
+VIDEO_ALTYAZI_STIL = (os.getenv("VIDEO_ALTYAZI_STIL") or "kutusuz").strip().lower()   # kutusuz | kutu
+VIDEO_ILERLEME = _bool("VIDEO_ILERLEME", True)            # en altta ince ilerleme cizgisi      # sag ustte sayfa numarasi
 VIDEO_SUNUM = _bool("VIDEO_SUNUM", True)            # PDF modunda gosterge kartlarini yeniden ciz
 VIDEO_ALTYAZI = _bool("VIDEO_ALTYAZI", True)        # arayuzdeki "Altyazi goster" varsayilani
 VIDEO_FFMPEG = os.getenv("VIDEO_FFMPEG", "")         # bos: imageio-ffmpeg'den otomatik
