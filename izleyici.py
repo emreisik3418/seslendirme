@@ -23,7 +23,6 @@ PDF adinin basinda tarih varsa (NPrinting: 20261028_APK_Rapor.pdf) tarihsiz ad d
 APK_Rapor.docx sabit sablon sayilir ve klasorde kalir; 20261028_APK_Rapor.docx PDF ile birlikte tasinir.
 """
 import argparse
-import re
 import hashlib
 import json
 import logging
@@ -177,18 +176,8 @@ def _llm_onbellekli(kurallar: str, metinler: list[str]) -> list[str]:
 
 
 # --------------------------------------------------------------- isleme
-# Dosya adinin basindaki tarih (NPrinting vb.): 20261028_, 2026-10-28 , 28.10.2026-, 20261028_1015_ ...
-_TARIH_ONEKI = re.compile(
-    r"^(?:\d{4}[-_.]?\d{2}[-_.]?\d{2}|\d{2}[-_.]?\d{2}[-_.]?\d{4})"   # yyyymmdd / ddmmyyyy
-    r"(?:[-_ .T]?\d{2}[-_.:]?\d{2}(?:[-_.:]?\d{2})?)?"                  # istege bagli saat
-    r"[\s_\-.]+"
-)
-
-
-def tarihsiz_ad(ad: str) -> str:
-    """'20261028_APK_Rapor' -> 'APK_Rapor'. Tarih oneki yoksa adi aynen dondurur."""
-    kalan = _TARIH_ONEKI.sub("", ad, count=1)
-    return kalan or ad
+# Dosya adinin basindaki tarihi (NPrinting vb.) atar: '20261028_APK_Rapor' -> 'APK_Rapor'
+tarihsiz_ad = qlik_yukleyici.tarihsiz_ad
 
 
 def _esli_word(pdf: Path) -> tuple[Path | None, bool]:
@@ -280,7 +269,8 @@ def qlik_yukle(video: Path) -> bool:
     """Videoyu Qlik'e yukler; basarisizsa yanina isaret dosyasi birakir (sonra tekrar denenir)."""
     isaret = video.with_name(video.name + BEKLIYOR)
     try:
-        sonuc = qlik_yukleyici.video_yukle(video, video.with_suffix(".srt"))
+        # Qlik'te hep ayni ad (tarih oneki atilmis PDF adi veya QLIK_DOSYA_ADI): eski video uzerine yazilir
+        sonuc = qlik_yukleyici.video_yukle(video, video.with_suffix(".srt"), kaynak_adi=video.name)
     except qlik_yukleyici.QlikHatasi as e:
         sayi = 1
         if isaret.exists():

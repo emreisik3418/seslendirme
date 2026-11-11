@@ -79,6 +79,10 @@ with st.sidebar:
     if qlik_yukleyici.tanimli_mi():
         st.success("Qlik tanımlı")
         st.caption(f"{config.QLIK_URL} · kütüphane: {config.QLIK_KUTUPHANE} · kimlik: {config.QLIK_KIMLIK}")
+        if config.QLIK_DOSYA_ADI:
+            st.caption(f"Qlik'e hep şu adla yüklenir: {qlik_yukleyici.yukleme_adi(None)}")
+        for not_ in config.QLIK_NOTLAR:
+            st.info(not_)
         if st.button("Qlik bağlantısını test et"):
             try:
                 st.info(qlik_yukleyici.baglanti_testi())
@@ -136,10 +140,15 @@ def video_goster():
         k1.download_button("⬇️ Videoyu indir (.mp4)", v.video.read_bytes(), file_name=v.video.name, mime="video/mp4")
         k2.download_button("⬇️ Altyazıyı indir (.srt)", v.altyazi.read_bytes(), file_name=v.altyazi.name)
         if qlik_yukleyici.tanimli_mi():
+            # Ayni kaynaktan hep ayni ad: Qlik'teki eski video uzerine yazilir, dosyalar birikmez
+            onerilen = qlik_yukleyici.yukleme_adi(st.session_state.get("video_kaynak") or v.video.name)
+            qlik_adi = k3.text_input("Qlik'teki dosya adı", value=onerilen, key=f"qlik_adi_{v.video.name}",
+                                     help="Aynı adla yüklenen dosya Qlik'te üzerine yazılır.")
             if k3.button("📤 Qlik'e gönder", help=f"Content library: {config.QLIK_KUTUPHANE}"):
                 with st.spinner("Qlik'e yükleniyor..."):
                     try:
-                        sonuc = qlik_yukleyici.video_yukle(v.video, v.altyazi)
+                        ad = qlik_yukleyici.temiz_ad(qlik_adi) or onerilen
+                        sonuc = qlik_yukleyici.video_yukle(v.video, v.altyazi, ad=ad)
                         st.session_state.qlik_sonuc = (v.video.name, sonuc.adres)
                     except qlik_yukleyici.QlikHatasi as e:
                         st.error(f"Qlik'e yüklenemedi: {e}")
@@ -283,6 +292,7 @@ with sekme_slayt:
                 altyazi=altyazi_goster,
                 karakter=karakter_goster,
             )
+            st.session_state.video_kaynak = st.session_state.son_dosya or "docvoice"
             st.toast(f"Kaydedildi: output/{st.session_state.video.video.name}")
         except (VideoHatasi, TTSHatasi, ValueError) as e:
             cubuk.empty()
@@ -423,6 +433,7 @@ with sekme_pdf:
                     sunum=sunum_gorunumu,
                     karakter=karakter_goster,
                 )
+                st.session_state.video_kaynak = st.session_state.pdf_adi or "docvoice"
                 st.toast(f"Kaydedildi: output/{st.session_state.video.video.name}")
             except (VideoHatasi, TTSHatasi, ValueError) as e:
                 cubuk.empty()

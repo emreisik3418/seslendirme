@@ -175,9 +175,47 @@ QLIK_SSL_DOGRULA = _bool("QLIK_SSL_DOGRULA", True)
 QLIK_HOST_KONTROL = _bool("QLIK_HOST_KONTROL", False)   # Qlik sertifikalari genelde makine adina verilir
 QLIK_ICERIK_URL = (os.getenv("QLIK_ICERIK_URL") or "").strip().rstrip("/")   # izleme adresinin koku (bos: QLIK_URL)
 QLIK_UZERINE_YAZ = _bool("QLIK_UZERINE_YAZ", True)
+# Qlik'e hep ayni adla yuklensin (uzerine yazilir, birikmez). Bos: kaynak dosyanin adi (tarih oneki atilarak)
+QLIK_DOSYA_ADI = (os.getenv("QLIK_DOSYA_ADI") or "").strip().strip("'\"")
+QLIK_TARIHSIZ = _bool("QLIK_TARIHSIZ", True)      # 20261028_APK_Rapor.pdf -> APK_Rapor.mp4
 QLIK_SRT = _bool("QLIK_SRT", False)
 try:
     QLIK_TIMEOUT = float(os.getenv("QLIK_TIMEOUT", "600"))
 except ValueError:
     QLIK_TIMEOUT = 600.0
 IZLE_QLIK = _bool("IZLE_QLIK", False)   # izleyici videoyu olusturduktan sonra Qlik'e yuklesin
+QLIK_NOTLAR: list[str] = []             # adres cozumlemesi gibi bilgiler (arayuzde gosterilir)
+
+
+def _qlik_icerik_adresini_coz():
+    """QLIK_URL'ye izleme (content library) adresi yazildiysa ayiklar:
+    https://sunucu/content/Kutuphane  ->  kutuphane=Kutuphane, izleme koku=https://sunucu,
+    yukleme (QRS) adresi: sertifika -> https://sunucu:4242, header -> https://sunucu"""
+    global QLIK_URL, QLIK_KUTUPHANE, QLIK_ICERIK_URL
+    from urllib.parse import unquote, urlsplit
+
+    if "/content/" not in QLIK_URL.lower():
+        return
+    p = urlsplit(QLIK_URL)
+    i = p.path.lower().index("/content/")
+    onek = p.path[:i]                                   # virtual proxy oneki olabilir (/vp)
+    kutuphane = unquote(p.path[i + len("/content/"):].strip("/").split("/")[0])
+    kok = f"{p.scheme}://{p.netloc}{onek}"
+    if kutuphane and not os.getenv("QLIK_KUTUPHANE"):
+        QLIK_KUTUPHANE = kutuphane
+    elif kutuphane and kutuphane != QLIK_KUTUPHANE:
+        UYARILAR.append(f"QLIK_URL içindeki kütüphane ({kutuphane}) QLIK_KUTUPHANE ({QLIK_KUTUPHANE}) "
+                        "ile farklı; QLIK_KUTUPHANE kullanılıyor.")
+    if not QLIK_ICERIK_URL:
+        QLIK_ICERIK_URL = kok
+    if QLIK_KIMLIK == "sertifika":
+        QLIK_URL = f"{p.scheme}://{p.hostname}:4242"
+    else:
+        QLIK_URL = kok
+    QLIK_NOTLAR.append(
+        f"QLIK_URL bir izleme adresi; şöyle yorumlandı → kütüphane: {QLIK_KUTUPHANE}, "
+        f"yükleme adresi: {QLIK_URL}, izleme adresi: {QLIK_ICERIK_URL}/content/{QLIK_KUTUPHANE}/…  "
+        "Qlik ekibi farklı bir yükleme (QRS) adresi verdiyse QLIK_URL'ye onu yazın.")
+
+
+_qlik_icerik_adresini_coz()

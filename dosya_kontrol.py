@@ -12,7 +12,7 @@ KARAKTER_KLASORU KURALLAR_DOSYASI LLM_APP_NAME LLM_PARALEL LLM_TIMEOUT LLM_TOKEN
 PROJE_KLASORU TTS_BEKLEME TTS_KEY TTS_LANG TTS_LEXICON TTS_OUTPUT_FORMAT TTS_RETRY TTS_TIMEOUT
 TTS_URL TTS_VOICE UYARILAR VERIFY_SSL VIDEO_ACCENT VIDEO_ALTYAZI VIDEO_BG VIDEO_BG2 VIDEO_FFMPEG
 VIDEO_FONT VIDEO_FONT_BOLD VIDEO_KARAKTER VIDEO_KARAKTER_BOYUT VIDEO_KARAKTER_TIPI
-QLIK_URL QLIK_KUTUPHANE QLIK_KIMLIK IZLE_QLIK ORIJINAL_SSLCONTEXT ssl_dogrulama VIDEO_LOGO VIDEO_LOGO_ZEMIN VIDEO_SAYFA_NO VIDEO_SUNUM VIDEO_PDF_TAM_EKRAN VIDEO_ALTYAZI_STIL VIDEO_ILERLEME
+QLIK_URL QLIK_KUTUPHANE QLIK_KIMLIK QLIK_DOSYA_ADI QLIK_TARIHSIZ QLIK_NOTLAR IZLE_QLIK ORIJINAL_SSLCONTEXT ssl_dogrulama VIDEO_LOGO VIDEO_LOGO_ZEMIN VIDEO_SAYFA_NO VIDEO_SUNUM VIDEO_PDF_TAM_EKRAN VIDEO_ALTYAZI_STIL VIDEO_ILERLEME
 """.split()
 
 # Modul -> icinde bulunmasi gereken isimler
@@ -27,7 +27,7 @@ GEREKLI_MODULLER = {
     "services.figur": ["animasyon", "kare", "kare_ekran", "boyut", "sag_alan", "konum"],
     "services.video_builder": ["VideoHatasi", "pdf_videosu_olustur", "video_olustur", "SAG_BOSLUK",
                                "kullanilabilir_karakterler", "karakter_tipi"],
-    "services.qlik_yukleyici": ["tanimli_mi", "baglanti_testi", "video_yukle", "QlikHatasi"],
+    "services.qlik_yukleyici": ["tanimli_mi", "baglanti_testi", "video_yukle", "QlikHatasi", "yukleme_adi", "temiz_ad", "tarihsiz_ad"],
     "services.maya": ["animasyon", "kare_ekran", "boyut", "sag_alan", "konum"],
     "services.sunum_cizim": ["sunum_slayti", "SunumCizici"],
 }

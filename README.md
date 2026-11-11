@@ -162,8 +162,14 @@ Oluşan video, Qlik Sense (şirket içi) content library'sine QRS API ile yükle
      (veya Qlik ekibinin vereceği servis kullanıcısı). İzleme adresi için `QLIK_ICERIK_URL=https://qliksunucu`.
    - `QLIK_KIMLIK=header`: header ile kimlik doğrulayan bir virtual proxy; `QLIK_URL=https://qliksunucu/<önek>`,
      `QLIK_HEADER_ADI` ve `QLIK_KULLANICI=DOMAIN\kullanici`.
-3. Yan paneldeki **Qlik bağlantısını test et** ile kontrol edin; video oluşunca **Qlik'e gönder**.
-4. İzleyicide otomatik yükleme: `IZLE_QLIK=true`. Yükleme başarısız olursa video hedef klasörde kalır, yanına
+   - Size yalnızca bir "klasör" adresi (`https://qliksunucu/content/KutuphaneAdi`) verildiyse: bu izleme adresidir,
+     `/content/` sonrası kütüphane adıdır. `QLIK_URL`'ye bunu yazarsanız uygulama kütüphaneyi ve izleme adresini
+     çıkarır, yükleme adresini tahmin eder (sertifika: `:4242`) ve yan panelde gösterir.
+3. **Dosya adı sabittir:** video Qlik'e kaynak dosyanın adıyla, başındaki tarih atılarak yüklenir
+   (`20261111_APK_Rapor.pdf` → `APK_Rapor.mp4`) ve aynı adlı eski video üzerine yazılır; kütüphanede birikme olmaz.
+   Hep tek bir ad istenirse `QLIK_DOSYA_ADI=YoneticiOzeti`. Arayüzde ad, gönderme butonunun üstünde değiştirilebilir.
+4. Yan paneldeki **Qlik bağlantısını test et** ile kontrol edin; video oluşunca **Qlik'e gönder**.
+5. İzleyicide otomatik yükleme: `IZLE_QLIK=true`. Yükleme başarısız olursa video hedef klasörde kalır, yanına
    `.qlik_bekliyor` dosyası yazılır ve izleyici 5 dakikada bir (en fazla 12 kez) yeniden dener.
 
 ## Sorun giderme

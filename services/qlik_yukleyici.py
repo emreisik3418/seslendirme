@@ -1,6 +1,7 @@
 """Videoyu Qlik Sense (sirket ici) content library'sine QRS API ile yukler.
 
 Akis:  POST {QLIK_URL}/qrs/contentlibrary/{kutuphane}/uploadfile?externalpath=<dosya>&overwrite=true
+       Dosya adi her seferinde ayni (yukleme_adi): eski video uzerine yazilir, kutuphanede birikme olmaz.
 Sonuc: video {QLIK_ICERIK_URL}/content/{kutuphane}/<dosya> adresinden izlenir
        (uygulamada Dashboard bundle > Video player nesnesine bu adres verilir).
 
@@ -13,6 +14,7 @@ Kimlik dogrulama (QLIK_KIMLIK):
 QRS her istekte ayni 16 karakterlik xrfkey'i hem sorguda hem X-Qlik-Xrfkey header'inda ister.
 """
 import mimetypes
+import re
 import secrets
 import ssl
 import string
@@ -172,9 +174,51 @@ def yukle(dosya: Path, ad: str | None = None, deneme: int = 3) -> YuklemeSonucu:
     raise QlikHatasi(f"{son_hata} ({deneme} deneme yapıldı)")
 
 
-def video_yukle(video: Path, altyazi: Path | None = None) -> YuklemeSonucu:
-    """Videoyu (ve QLIK_SRT acikken altyazisini) yukler. Doner: videonun sonucu."""
-    sonuc = yukle(video)
+# ------------------------------------------------------------ dosya adi
+# Dosya adinin basindaki tarih (NPrinting vb.): 20261028_, 2026-10-28 , 28.10.2026-, 20261028_1015_ ...
+_TARIH_ONEKI = re.compile(
+    r"^(?:\d{4}[-_.]?\d{2}[-_.]?\d{2}|\d{2}[-_.]?\d{2}[-_.]?\d{4})"   # yyyymmdd / ddmmyyyy
+    r"(?:[-_ .T]?\d{2}[-_.:]?\d{2}(?:[-_.:]?\d{2})?)?"                  # istege bagli saat
+    r"[\s_\-.]+"
+)
+_ZAMAN_SONEKI = re.compile(r"_\d{8}_\d{6}$")          # ayni ad varken eklenen _20261028_101500
+_URL_BOZAN = re.compile(r"[\s#?%&+\\/:*\"<>|']+")    # adreste sorun cikaran karakterler
+
+
+def tarihsiz_ad(ad: str) -> str:
+    """'20261028_APK_Rapor' -> 'APK_Rapor'. Tarih oneki yoksa adi aynen dondurur."""
+    kalan = _TARIH_ONEKI.sub("", ad, count=1)
+    return kalan or ad
+
+
+def yukleme_adi(kaynak: str | Path | None, uzanti: str = ".mp4") -> str:
+    """Qlik'teki dosya adi. Ayni kaynaktan her gun ayni ad cikar, boylece dosya uzerine yazilir.
+    Oncelik: QLIK_DOSYA_ADI > kaynak dosyanin adi (QLIK_TARIHSIZ ile tarih oneki atilir) > 'docvoice'."""
+    if config.QLIK_DOSYA_ADI:
+        kok = Path(config.QLIK_DOSYA_ADI).stem if Path(config.QLIK_DOSYA_ADI).suffix else config.QLIK_DOSYA_ADI
+    else:
+        kok = Path(str(kaynak or "")).stem
+        kok = _ZAMAN_SONEKI.sub("", kok)
+        if config.QLIK_TARIHSIZ:
+            kok = tarihsiz_ad(kok)
+    return temiz_ad(kok, uzanti) or "docvoice" + uzanti
+
+
+def temiz_ad(ad: str, uzanti: str = ".mp4") -> str:
+    """Adresi bozan karakterleri '_' yapar, uzantiyi ekler: 'APK Rapor' -> 'APK_Rapor.mp4'. Bos ad: ''"""
+    kok = (ad or "").strip()
+    if kok.lower().endswith(uzanti):
+        kok = kok[: -len(uzanti)]
+    kok = _URL_BOZAN.sub("_", kok).strip("._-")
+    return kok + uzanti if kok else ""
+
+
+def video_yukle(video: Path, altyazi: Path | None = None, kaynak_adi: str | None = None,
+                ad: str | None = None) -> YuklemeSonucu:
+    """Videoyu (ve QLIK_SRT acikken altyazisini) yukler. Doner: videonun sonucu.
+    ad verilmezse yukleme_adi(kaynak_adi veya video adi) kullanilir; ayni adda dosya uzerine yazilir."""
+    ad = ad or yukleme_adi(kaynak_adi or video.name)
+    sonuc = yukle(video, ad=ad)
     if config.QLIK_SRT and altyazi and Path(altyazi).exists():
-        yukle(altyazi)
+        yukle(altyazi, ad=Path(ad).with_suffix(".srt").name)
     return sonuc
