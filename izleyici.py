@@ -43,6 +43,7 @@ if _sorunlar:
 
 import config  # noqa: E402
 from services.document_reader import sayfalara_esle, word_sayfa_metinleri
+from services import qlik_yukleyici
 from services.llm_client import LLMHatasi, sayfalari_formatla
 from services.pdf_pages import sayfa_metinleri
 from services.ssml_tools import ssml_onar
@@ -78,6 +79,8 @@ def _ayarlari_dogrula() -> list[str]:
         hatalar.append("LLM_URL tanımlı değil (.env)")
     if not config.TTS_URL:
         hatalar.append("TTS_URL tanımlı değil (.env)")
+    if config.IZLE_QLIK and not qlik_yukleyici.tanimli_mi():
+        hatalar.append("IZLE_QLIK açık ama QLIK_URL tanımlı değil (.env)")
     if not _kurallar_dosyasi().exists():
         hatalar.append(f"Kural seti dosyası bulunamadı: {_kurallar_dosyasi()}")
     return hatalar + [u for u in config.UYARILAR if "IZLE" in u]
@@ -267,6 +270,52 @@ def pdf_isle(pdf_yolu: Path, word_yolu: Path | None = None) -> Path:
     return video
 
 
+# ------------------------------------------------------------- Qlik yukleme
+BEKLIYOR = ".qlik_bekliyor"      # basarisiz yuklemelerin isaret dosyasi (videonun yaninda)
+QLIK_TEKRAR_ARALIK = 300         # basarisiz yukleme en erken kac sn sonra tekrar denensin
+QLIK_AZAMI_DENEME = 12
+
+
+def qlik_yukle(video: Path) -> bool:
+    """Videoyu Qlik'e yukler; basarisizsa yanina isaret dosyasi birakir (sonra tekrar denenir)."""
+    isaret = video.with_name(video.name + BEKLIYOR)
+    try:
+        sonuc = qlik_yukleyici.video_yukle(video, video.with_suffix(".srt"))
+    except qlik_yukleyici.QlikHatasi as e:
+        sayi = 1
+        if isaret.exists():
+            try:
+                sayi = int(isaret.read_text(encoding="utf-8").split("\n", 1)[0]) + 1
+            except ValueError:
+                pass
+        isaret.write_text(f"{sayi}\n{datetime.now():%Y-%m-%d %H:%M:%S}\n{e}\n", encoding="utf-8")
+        log.error(f"  Qlik'e yüklenemedi ({sayi}. deneme), sonra tekrar denenecek: {e}")
+        return False
+    isaret.unlink(missing_ok=True)
+    log.info(f"  Qlik'e yüklendi: {sonuc.adres}")
+    return True
+
+
+def bekleyen_yuklemeler():
+    """Daha once basarisiz olan Qlik yuklemelerini belirli araliklarla yeniden dener."""
+    hedef = config.IZLE_HEDEF_KLASORU
+    if not (config.IZLE_QLIK and hedef and hedef.is_dir()):
+        return
+    for isaret in sorted(hedef.glob(f"*{BEKLIYOR}")):
+        video = isaret.with_name(isaret.name[: -len(BEKLIYOR)])
+        if not video.exists():
+            isaret.unlink(missing_ok=True)
+            continue
+        try:
+            sayi = int(isaret.read_text(encoding="utf-8").split("\n", 1)[0])
+        except (OSError, ValueError):
+            sayi = 1
+        if sayi >= QLIK_AZAMI_DENEME or time.time() - isaret.stat().st_mtime < QLIK_TEKRAR_ARALIK:
+            continue
+        log.info(f"Qlik yüklemesi yeniden deneniyor: {video.name}")
+        qlik_yukle(video)
+
+
 def bir_tur(klasor: Path, takip: KopyalamaTakibi) -> int:
     islenen = 0
     for pdf in _yeni_pdfler(klasor):
@@ -279,7 +328,9 @@ def bir_tur(klasor: Path, takip: KopyalamaTakibi) -> int:
         # Sabit sablon yerinde kalir (her gun kullanilir); o gune ozel Word PDF ile birlikte tasinir
         word_calisma = word if sabit else (_tasi(word, klasor / ISLENIYOR) if word else None)
         try:
-            pdf_isle(calisma, word_calisma)
+            video = pdf_isle(calisma, word_calisma)
+            if config.IZLE_QLIK:
+                qlik_yukle(video)   # basarisiz olsa da video hedef klasorde; sonra tekrar denenir
             _tasi(calisma, klasor / ISLENEN)
             if word_calisma and not sabit:
                 _tasi(word_calisma, klasor / ISLENEN)
@@ -334,6 +385,8 @@ def main():
     log.info(f"  Sunum görünümü : {'açık' if config.VIDEO_SUNUM else 'kapalı'} · "
              f"Altyazı: {'açık' if config.VIDEO_ALTYAZI else 'kapalı'} · "
              f"Karakter: {config.VIDEO_KARAKTER_TIPI if config.VIDEO_KARAKTER else 'kapalı'}")
+    if config.IZLE_QLIK:
+        log.info(f"  Qlik           : {config.QLIK_URL} · kütüphane {config.QLIK_KUTUPHANE}")
     _yarim_kalanlari_geri_al(klasor)
 
     takip = KopyalamaTakibi()
@@ -349,6 +402,7 @@ def main():
         while True:
             try:
                 bir_tur(klasor, takip)
+                bekleyen_yuklemeler()
             except OSError as e:   # ag paylasimi gecici olarak erisilemez olabilir
                 log.warning(f"Klasöre erişilemedi, tekrar denenecek: {e}")
             time.sleep(config.IZLE_ARALIK)

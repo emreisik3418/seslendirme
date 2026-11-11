@@ -105,7 +105,7 @@ def seslendir(icerik: str) -> tuple[bytes, str]:
                 content=ssml.encode("utf-8"),
                 headers=headerlar,
                 timeout=config.TTS_TIMEOUT,
-                verify=config.VERIFY_SSL,
+                verify=config.ssl_dogrulama(),
             )
         except httpx.ConnectError as e:
             son_hata = f"Seslendirme servisine baglanilamadi (ag/SSL): {e}"

@@ -7,14 +7,23 @@ from dotenv import load_dotenv
 PROJE_KLASORU = Path(__file__).parent
 load_dotenv(PROJE_KLASORU / ".env")
 
-# Sirket sertifikalari icin: Python, Windows'un sertifika deposunu kullansin.
-# (truststore kurulu degilse sessizce atlanir.)
-try:
-    import truststore
+import ssl as _ssl
 
-    truststore.inject_into_ssl()
-except ImportError:
-    pass
+# Qlik gibi kendi kok sertifikasi olan sunucular icin standart SSL sinifi
+ORIJINAL_SSLCONTEXT = _ssl.SSLContext
+
+
+def ssl_dogrulama():
+    """LLM / TTS servisleri icin SSL dogrulama ayari (httpx verify=).
+    Sirket sertifikalari icin Windows'un sertifika deposu kullanilir (truststore paketi).
+    truststore uygulama geneline enjekte edilmez; boylece Qlik'in root.pem ile dogrulamasi bozulmaz."""
+    if not VERIFY_SSL:
+        return False
+    try:
+        import truststore
+        return truststore.SSLContext(_ssl.PROTOCOL_TLS_CLIENT)
+    except ImportError:
+        return True
 
 
 def _bool(ad: str, varsayilan: bool) -> bool:
@@ -152,3 +161,23 @@ IZLE_SRT = _bool("IZLE_SRT", True)                   # .srt altyazi dosyasini da
 KARAKTER_KLASORU = _yol("KARAKTER_KLASORU")
 # Varsayilan karakter: sunucu (kadin), maya (maskot) veya ozel (KARAKTER_KLASORU'ndaki gorseller)
 VIDEO_KARAKTER_TIPI = (os.getenv("VIDEO_KARAKTER_TIPI") or ("ozel" if KARAKTER_KLASORU else "sunucu")).strip().lower()
+
+# --- Qlik Sense (QRS API ile content library'ye video yukleme) ---
+QLIK_URL = (os.getenv("QLIK_URL") or "").strip().rstrip("/")       # https://qliksunucu:4242 veya https://qliksunucu/vproxy
+QLIK_KUTUPHANE = (os.getenv("QLIK_KUTUPHANE") or "DocVoice").strip()
+QLIK_KIMLIK = (os.getenv("QLIK_KIMLIK") or "sertifika").strip().lower()   # sertifika | header
+QLIK_KULLANICI = (os.getenv("QLIK_KULLANICI") or "").strip()      # sertifika: UserDirectory=X; UserId=Y  header: DOMAIN\kullanici
+QLIK_HEADER_ADI = (os.getenv("QLIK_HEADER_ADI") or "X-Qlik-User").strip()
+QLIK_SERTIFIKA = _yol("QLIK_SERTIFIKA")           # client.pem
+QLIK_ANAHTAR = _yol("QLIK_ANAHTAR")               # client_key.pem
+QLIK_KOK_SERTIFIKA = _yol("QLIK_KOK_SERTIFIKA")   # root.pem (bos: Windows sertifika deposu)
+QLIK_SSL_DOGRULA = _bool("QLIK_SSL_DOGRULA", True)
+QLIK_HOST_KONTROL = _bool("QLIK_HOST_KONTROL", False)   # Qlik sertifikalari genelde makine adina verilir
+QLIK_ICERIK_URL = (os.getenv("QLIK_ICERIK_URL") or "").strip().rstrip("/")   # izleme adresinin koku (bos: QLIK_URL)
+QLIK_UZERINE_YAZ = _bool("QLIK_UZERINE_YAZ", True)
+QLIK_SRT = _bool("QLIK_SRT", False)
+try:
+    QLIK_TIMEOUT = float(os.getenv("QLIK_TIMEOUT", "600"))
+except ValueError:
+    QLIK_TIMEOUT = 600.0
+IZLE_QLIK = _bool("IZLE_QLIK", False)   # izleyici videoyu olusturduktan sonra Qlik'e yuklesin

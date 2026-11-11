@@ -22,6 +22,7 @@ from services.llm_client import LLMHatasi, formatla, sayfalari_formatla
 from services.pdf_kartlar import sayfa_duzeni
 from services.pdf_pages import sayfa_gorseli, sayfa_metinleri
 from services.sunum_cizim import sunum_slayti
+from services import qlik_yukleyici
 from services.ssml_tools import etiketsiz, ssml_onar
 from services.tts_client import TTSHatasi, dosya_uzantisi, seslendir
 from services.video_builder import (VideoHatasi, kullanilabilir_karakterler, pdf_videosu_olustur,
@@ -74,6 +75,17 @@ with st.sidebar:
         st.image(config.VIDEO_LOGO, width=160)
     else:
         st.caption("Logo: yok")
+    st.divider()
+    if qlik_yukleyici.tanimli_mi():
+        st.success("Qlik tanımlı")
+        st.caption(f"{config.QLIK_URL} · kütüphane: {config.QLIK_KUTUPHANE} · kimlik: {config.QLIK_KIMLIK}")
+        if st.button("Qlik bağlantısını test et"):
+            try:
+                st.info(qlik_yukleyici.baglanti_testi())
+            except qlik_yukleyici.QlikHatasi as e:
+                st.error(str(e))
+    else:
+        st.caption("Qlik: tanımlı değil (QLIK_URL)")
     for uyari in config.UYARILAR:
         st.warning(uyari)
 
@@ -120,9 +132,23 @@ def video_goster():
     if v and v.video.exists():
         st.video(str(v.video))
         st.caption(f"{v.bolum_sayisi} sahne · {int(v.sure // 60)} dk {int(v.sure % 60)} sn · output/{v.video.name}")
-        k1, k2 = st.columns(2)
+        k1, k2, k3 = st.columns(3)
         k1.download_button("⬇️ Videoyu indir (.mp4)", v.video.read_bytes(), file_name=v.video.name, mime="video/mp4")
         k2.download_button("⬇️ Altyazıyı indir (.srt)", v.altyazi.read_bytes(), file_name=v.altyazi.name)
+        if qlik_yukleyici.tanimli_mi():
+            if k3.button("📤 Qlik'e gönder", help=f"Content library: {config.QLIK_KUTUPHANE}"):
+                with st.spinner("Qlik'e yükleniyor..."):
+                    try:
+                        sonuc = qlik_yukleyici.video_yukle(v.video, v.altyazi)
+                        st.session_state.qlik_sonuc = (v.video.name, sonuc.adres)
+                    except qlik_yukleyici.QlikHatasi as e:
+                        st.error(f"Qlik'e yüklenemedi: {e}")
+            onceki = st.session_state.get("qlik_sonuc")
+            if onceki and onceki[0] == v.video.name:
+                st.success("Qlik'e yüklendi. Uygulamada Video player nesnesine bu adresi verin:")
+                st.code(onceki[1], language=None)
+        else:
+            k3.caption("Qlik'e göndermek için .env'de QLIK_URL tanımlayın.")
 
 
 sol, sag = st.columns(2)

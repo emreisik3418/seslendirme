@@ -25,6 +25,7 @@ app.py                       Arayüz (Streamlit)
 izleyici.py                  Klasör izleyici: gelen PDF'leri otomatik videoya çevirir
 izleyici_baslat.bat          İzleyiciyi Windows'ta çift tıklayarak başlatır
 dosya_kontrol.py             Açılışta proje dosyalarının birbiriyle uyumunu kontrol eder
+services/qlik_yukleyici.py   Videoyu Qlik Sense content library'ye yükler (QRS API)
 config.py                    .env'den ayarları okur
 rules/kurallar.txt           Varsayılan kural seti (system prompt)
 services/document_reader.py  Word / PDF / TXT okuma
@@ -146,6 +147,24 @@ Akış: yeni PDF → kopyalama bitene kadar beklenir → sayfalar LLM'e gönderi
 
 Kayıtlar `logs/izleyici.log` dosyasına yazılır. Bilgisayar açıldığında otomatik başlaması için
 `izleyici_baslat.bat` dosyasının kısayolunu Windows'un Başlangıç klasörüne (`Win + R` → `shell:startup`) koyabilirsiniz.
+
+## Qlik Sense'e yükleme
+
+Oluşan video, Qlik Sense (şirket içi) content library'sine QRS API ile yüklenir ve
+`https://<qlik>/content/<kütüphane>/<dosya>.mp4` adresinden izlenir. Uygulamada Dashboard bundle içindeki
+**Video player** nesnesine bu adres verilir.
+
+1. Qlik ekibi bir content library oluşturur (örn. `DocVoice`), yazma izni verir ve izleyecek kullanıcılara okuma
+   izni tanımlar.
+2. `.env` içinde `QLIK_*` ayarlarını doldurun. İki kimlik doğrulama yolu desteklenir:
+   - `QLIK_KIMLIK=sertifika`: Qlik'ten dışa aktarılan `client.pem`, `client_key.pem`, `root.pem`;
+     `QLIK_URL=https://qliksunucu:4242`, `QLIK_KULLANICI=UserDirectory=INTERNAL; UserId=sa_repository`
+     (veya Qlik ekibinin vereceği servis kullanıcısı). İzleme adresi için `QLIK_ICERIK_URL=https://qliksunucu`.
+   - `QLIK_KIMLIK=header`: header ile kimlik doğrulayan bir virtual proxy; `QLIK_URL=https://qliksunucu/<önek>`,
+     `QLIK_HEADER_ADI` ve `QLIK_KULLANICI=DOMAIN\kullanici`.
+3. Yan paneldeki **Qlik bağlantısını test et** ile kontrol edin; video oluşunca **Qlik'e gönder**.
+4. İzleyicide otomatik yükleme: `IZLE_QLIK=true`. Yükleme başarısız olursa video hedef klasörde kalır, yanına
+   `.qlik_bekliyor` dosyası yazılır ve izleyici 5 dakikada bir (en fazla 12 kez) yeniden dener.
 
 ## Sorun giderme
 

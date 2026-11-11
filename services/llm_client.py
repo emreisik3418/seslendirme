@@ -56,7 +56,7 @@ def formatla(kurallar: str, metin: str) -> tuple[str, dict]:
             json=govde,
             headers=_headerlar(),
             timeout=config.LLM_TIMEOUT,
-            verify=config.VERIFY_SSL,
+            verify=config.ssl_dogrulama(),
         )
     except httpx.ConnectError as e:
         raise LLMHatasi(f"Servise baglanilamadi (ag/SSL): {e}") from e
