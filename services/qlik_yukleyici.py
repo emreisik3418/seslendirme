@@ -98,16 +98,28 @@ def _istemci() -> httpx.Client:
     return httpx.Client(base_url=config.QLIK_URL, verify=dogrula, timeout=config.QLIK_TIMEOUT)
 
 
+def _kimlik_aciklama() -> str:
+    if config.QLIK_KIMLIK == "sertifika":
+        return config.QLIK_KULLANICI or "UserDirectory=INTERNAL; UserId=sa_repository"
+    return f"{config.QLIK_HEADER_ADI}: {config.QLIK_KULLANICI or '(boş)'}"
+
+
 def _hata_mesaji(yanit: httpx.Response) -> str:
+    metin = yanit.text or ""
+    if yanit.status_code == 403 and any(k in metin.lower() for k in ("xrf", "xsrf")):
+        yetki = "Xrfkey kontrolü başarısız (aradaki bir proxy sorgu veya header'ı değiştiriyor olabilir)."
+    else:
+        yetki = (f"Yetki yok: Qlik bu kullanıcıyı tanıdı ama '{config.QLIK_KUTUPHANE}' kütüphanesine yazma "
+                 f"izni vermedi. Kullanıcı: {_kimlik_aciklama()}. Qlik yöneticisinden bu kullanıcıya "
+                 "content library için Create/Read/Update/Delete izni isteyin.")
     ipucu = {
         401: "Kimlik doğrulanamadı: sertifika / kullanıcı bilgisini kontrol edin.",
-        403: "Yetki yok: kullanıcının content library'ye yazma izni olmalı (Qlik güvenlik kuralları). "
-             "Xrfkey hatası da 403 döner.",
+        403: yetki,
         404: f"'{config.QLIK_KUTUPHANE}' adlı content library bulunamadı veya adres yanlış.",
         409: "Aynı adda dosya var (QLIK_UZERINE_YAZ=true ile üzerine yazılabilir).",
         413: "Dosya sunucunun (veya aradaki proxy'nin) izin verdiği boyuttan büyük.",
     }.get(yanit.status_code, "")
-    return f"HTTP {yanit.status_code}: {ipucu} {yanit.text[:300]}".strip()
+    return f"HTTP {yanit.status_code}: {ipucu} {metin[:300]}".strip()
 
 
 def baglanti_testi() -> str:
