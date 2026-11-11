@@ -146,6 +146,27 @@ def baglanti_testi() -> str:
     return f"Bağlantı başarılı · Qlik sürüm {surum} · kütüphane '{config.QLIK_KUTUPHANE}' bulundu"
 
 
+def _yanittaki_yol(y: httpx.Response) -> str:
+    """Yuklemeden donen dosya yolu. Qlik surumune gore yanit duz metin ("/content/Kutuphane/a.mp4"),
+    JSON metni, {"logicalPath": ...} veya bir liste olabilir; okunamazsa bos doner (yukleme yine basarilidir)."""
+    if not y.content:
+        return ""
+    try:
+        veri = y.json()
+    except ValueError:
+        veri = y.text
+    if isinstance(veri, list) and veri:
+        veri = veri[0]
+    if isinstance(veri, dict):
+        veri = veri.get("logicalPath") or veri.get("path") or ""
+    if not isinstance(veri, str):
+        return ""
+    veri = veri.strip().strip('"')
+    if "/content/" in veri:
+        return veri[veri.index("/content/"):]       # tam adres donmusse yol kismi
+    return ""
+
+
 def yukle(dosya: Path, ad: str | None = None, deneme: int = 3) -> YuklemeSonucu:
     """Dosyayi content library'ye yukler (gecici hatalarda tekrar dener)."""
     dosya = Path(dosya)
@@ -171,12 +192,7 @@ def yukle(dosya: Path, ad: str | None = None, deneme: int = 3) -> YuklemeSonucu:
             son_hata = f"Yükleme {config.QLIK_TIMEOUT:.0f} sn içinde tamamlanmadı."
         else:
             if y.status_code in (200, 201):
-                yol = ""
-                try:
-                    yol = y.json().get("logicalPath", "") if y.content else ""
-                except ValueError:
-                    pass
-                yol = yol or f"/content/{config.QLIK_KUTUPHANE}/{ad}"
+                yol = _yanittaki_yol(y) or f"/content/{config.QLIK_KUTUPHANE}/{ad}"
                 kok = config.QLIK_ICERIK_URL or config.QLIK_URL
                 return YuklemeSonucu(dosya=ad, adres=kok + quote(yol, safe="/"), yol=yol)
             son_hata = _hata_mesaji(y)
