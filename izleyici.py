@@ -265,24 +265,36 @@ QLIK_TEKRAR_ARALIK = 300         # basarisiz yukleme en erken kac sn sonra tekra
 QLIK_AZAMI_DENEME = 12
 
 
-def qlik_yukle(video: Path) -> bool:
-    """Videoyu Qlik'e yukler; basarisizsa yanina isaret dosyasi birakir (sonra tekrar denenir)."""
+def _isaret_oku(isaret: Path) -> tuple[int, Path | None]:
+    """Isaret dosyasi: 1. satir deneme sayisi, 2. tarih, 3. 'pdf=<yol>', sonrasi hata mesaji."""
+    try:
+        satirlar = isaret.read_text(encoding="utf-8").split("\n")
+        sayi = int(satirlar[0])
+    except (OSError, ValueError, IndexError):
+        return 1, None
+    pdf = next((Path(x[4:]) for x in satirlar[2:3] if x.startswith("pdf=") and x[4:]), None)
+    return sayi, pdf
+
+
+def qlik_yukle(video: Path, pdf: Path | None = None) -> bool:
+    """Videoyu (ve QLIK_YUKLENECEKLER'e gore PDF / ses / altyazi dosyalarini) Qlik'e yukler.
+    Basarisizsa videonun yanina isaret dosyasi birakir (sonra tekrar denenir)."""
     isaret = video.with_name(video.name + BEKLIYOR)
     try:
-        # Qlik'te hep ayni ad (tarih oneki atilmis PDF adi veya QLIK_DOSYA_ADI): eski video uzerine yazilir
-        sonuc = qlik_yukleyici.video_yukle(video, video.with_suffix(".srt"), kaynak_adi=video.name)
-    except qlik_yukleyici.QlikHatasi as e:
-        sayi = 1
-        if isaret.exists():
-            try:
-                sayi = int(isaret.read_text(encoding="utf-8").split("\n", 1)[0]) + 1
-            except ValueError:
-                pass
-        isaret.write_text(f"{sayi}\n{datetime.now():%Y-%m-%d %H:%M:%S}\n{e}\n", encoding="utf-8")
+        # Qlik'te hep ayni ad (tarih oneki atilmis PDF adi veya QLIK_DOSYA_ADI): eski dosyalar uzerine yazilir
+        sonuc = qlik_yukleyici.dosyalari_yukle(video, video.with_suffix(".srt"), pdf=pdf,
+                                              kaynak_adi=video.name)
+    except Exception as e:   # QlikHatasi veya ses cikarma / dosya hatasi: sonra tekrar denenir
+        sayi = _isaret_oku(isaret)[0] + 1 if isaret.exists() else 1
+        isaret.write_text(f"{sayi}\n{datetime.now():%Y-%m-%d %H:%M:%S}\npdf={pdf or ''}\n{e}\n",
+                          encoding="utf-8")
         log.error(f"  Qlik'e yüklenemedi ({sayi}. deneme), sonra tekrar denenecek: {e}")
         return False
     isaret.unlink(missing_ok=True)
-    log.info(f"  Qlik'e yüklendi: {sonuc.adres}")
+    for r in sonuc.yuklenenler:
+        log.info(f"  Qlik'e yüklendi: {r.adres}")
+    for a in sonuc.atlananlar:
+        log.warning(f"  Qlik: {a}")
     return True
 
 
@@ -296,14 +308,11 @@ def bekleyen_yuklemeler():
         if not video.exists():
             isaret.unlink(missing_ok=True)
             continue
-        try:
-            sayi = int(isaret.read_text(encoding="utf-8").split("\n", 1)[0])
-        except (OSError, ValueError):
-            sayi = 1
+        sayi, pdf = _isaret_oku(isaret)
         if sayi >= QLIK_AZAMI_DENEME or time.time() - isaret.stat().st_mtime < QLIK_TEKRAR_ARALIK:
             continue
         log.info(f"Qlik yüklemesi yeniden deneniyor: {video.name}")
-        qlik_yukle(video)
+        qlik_yukle(video, pdf if pdf and pdf.exists() else None)
 
 
 def bir_tur(klasor: Path, takip: KopyalamaTakibi) -> int:
@@ -319,9 +328,10 @@ def bir_tur(klasor: Path, takip: KopyalamaTakibi) -> int:
         word_calisma = word if sabit else (_tasi(word, klasor / ISLENIYOR) if word else None)
         try:
             video = pdf_isle(calisma, word_calisma)
+            islenen_pdf = _tasi(calisma, klasor / ISLENEN)
             if config.IZLE_QLIK:
-                qlik_yukle(video)   # basarisiz olsa da video hedef klasorde; sonra tekrar denenir
-            _tasi(calisma, klasor / ISLENEN)
+                # basarisiz olsa da video hedef klasorde, PDF islenen/ klasorunde; sonra tekrar denenir
+                qlik_yukle(video, islenen_pdf)
             if word_calisma and not sabit:
                 _tasi(word_calisma, klasor / ISLENEN)
             islenen += 1

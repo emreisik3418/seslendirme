@@ -179,6 +179,16 @@ QLIK_UZERINE_YAZ = _bool("QLIK_UZERINE_YAZ", True)
 QLIK_DOSYA_ADI = (os.getenv("QLIK_DOSYA_ADI") or "").strip().strip("'\"")
 QLIK_TARIHSIZ = _bool("QLIK_TARIHSIZ", True)      # 20261028_APK_Rapor.pdf -> APK_Rapor.mp4
 QLIK_SRT = _bool("QLIK_SRT", False)
+# Qlik'e ayni adla gonderilecek dosyalar: video (.mp4), pdf (kaynak PDF), ses (videonun sesi), srt (altyazi)
+QLIK_YUKLENECEKLER = [t.strip().lower() for t in
+                      (os.getenv("QLIK_YUKLENECEKLER") or "video,pdf,ses").replace(";", ",").split(",")
+                      if t.strip()]
+if QLIK_SRT and "srt" not in QLIK_YUKLENECEKLER:
+    QLIK_YUKLENECEKLER.append("srt")
+for _t in QLIK_YUKLENECEKLER:
+    if _t not in ("video", "pdf", "ses", "srt"):
+        UYARILAR.append(f"QLIK_YUKLENECEKLER: '{_t}' tanınmadı (geçerli: video, pdf, ses, srt).")
+QLIK_SES_FORMATI = (os.getenv("QLIK_SES_FORMATI") or "mp3").strip().lower().lstrip(".")   # mp3 | m4a | wav
 try:
     QLIK_TIMEOUT = float(os.getenv("QLIK_TIMEOUT", "600"))
 except ValueError:

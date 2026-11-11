@@ -168,6 +168,9 @@ Oluşan video, Qlik Sense (şirket içi) content library'sine QRS API ile yükle
 3. **Dosya adı sabittir:** video Qlik'e kaynak dosyanın adıyla, başındaki tarih atılarak yüklenir
    (`20261111_APK_Rapor.pdf` → `APK_Rapor.mp4`) ve aynı adlı eski video üzerine yazılır; kütüphanede birikme olmaz.
    Hep tek bir ad istenirse `QLIK_DOSYA_ADI=YoneticiOzeti`. Arayüzde ad, gönderme butonunun üstünde değiştirilebilir.
+   Video ile birlikte kaynak PDF ve ses dosyası da aynı adla gider (`QLIK_YUKLENECEKLER=video,pdf,ses`):
+   `YoneticiOzeti.mp4`, `YoneticiOzeti.pdf`, `YoneticiOzeti.mp3`. Ses videodan çıkarılır (`QLIK_SES_FORMATI=mp3`).
+   Slayt modunda (Word'den) üretilen videoda PDF olmadığı için yalnız video ve ses gider.
 4. Yan paneldeki **Qlik bağlantısını test et** ile kontrol edin; video oluşunca **Qlik'e gönder**.
 5. İzleyicide otomatik yükleme: `IZLE_QLIK=true`. Yükleme başarısız olursa video hedef klasörde kalır, yanına
    `.qlik_bekliyor` dosyası yazılır ve izleyici 5 dakikada bir (en fazla 12 kez) yeniden dener.

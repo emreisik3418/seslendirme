@@ -5,6 +5,8 @@ Calistirma:  python -m streamlit run app.py
 import json
 from datetime import datetime
 
+from pathlib import Path
+
 import streamlit as st
 
 from dosya_kontrol import MESAJ, eksikleri_bul
@@ -140,25 +142,49 @@ def video_goster():
         k1.download_button("⬇️ Videoyu indir (.mp4)", v.video.read_bytes(), file_name=v.video.name, mime="video/mp4")
         k2.download_button("⬇️ Altyazıyı indir (.srt)", v.altyazi.read_bytes(), file_name=v.altyazi.name)
         if qlik_yukleyici.tanimli_mi():
-            # Ayni kaynaktan hep ayni ad: Qlik'teki eski video uzerine yazilir, dosyalar birikmez
-            onerilen = qlik_yukleyici.yukleme_adi(st.session_state.get("video_kaynak") or v.video.name)
-            qlik_adi = k3.text_input("Qlik'teki dosya adı", value=onerilen, key=f"qlik_adi_{v.video.name}",
-                                     help="Aynı adla yüklenen dosya Qlik'te üzerine yazılır.")
-            if k3.button("📤 Qlik'e gönder", help=f"Content library: {config.QLIK_KUTUPHANE}"):
-                with st.spinner("Qlik'e yükleniyor..."):
-                    try:
-                        ad = qlik_yukleyici.temiz_ad(qlik_adi) or onerilen
-                        sonuc = qlik_yukleyici.video_yukle(v.video, v.altyazi, ad=ad)
-                        st.session_state.qlik_sonuc = (v.video.name, sonuc.adres)
-                    except qlik_yukleyici.QlikHatasi as e:
-                        st.error(f"Qlik'e yüklenemedi: {e}")
-            onceki = st.session_state.get("qlik_sonuc")
-            if onceki and onceki[0] == v.video.name:
-                st.success("Qlik'e yüklendi. Uygulamada Video player nesnesine bu adresi verin:")
-                st.code(onceki[1], language=None)
+            qlik_bolumu(v)
         else:
             k3.caption("Qlik'e göndermek için .env'de QLIK_URL tanımlayın.")
 
+
+QLIK_TURLERI = {"video": "Video (.mp4)", "pdf": "PDF (.pdf)", "ses": f"Ses (.{config.QLIK_SES_FORMATI})",
+                "srt": "Altyazı (.srt)"}
+
+
+def qlik_bolumu(v):
+    """Video, PDF ve sesi Qlik content library'ye AYNI adla gonderir (eskilerin uzerine yazilir)."""
+    st.markdown(f"**📤 Qlik'e gönder** · content library: `{config.QLIK_KUTUPHANE}`")
+    onerilen = Path(qlik_yukleyici.yukleme_adi(st.session_state.get("video_kaynak") or v.video.name)).stem
+    pdf = st.session_state.get("video_pdf")
+    q1, q2 = st.columns([1, 2])
+    qlik_adi = q1.text_input("Dosya adı (uzantısız)", value=onerilen, key=f"qlik_adi_{v.video.name}",
+                             help="Tüm dosyalar bu adla gider; Qlik'teki aynı adlı eski dosyaların üzerine yazılır.")
+    varsayilan = [t for t in config.QLIK_YUKLENECEKLER if t in QLIK_TURLERI and (t != "pdf" or pdf)]
+    turler = q2.multiselect("Gönderilecek dosyalar", list(QLIK_TURLERI), default=varsayilan,
+                            format_func=QLIK_TURLERI.get, key=f"qlik_tur_{v.video.name}")
+    if "pdf" in turler and not pdf:
+        q2.caption("Bu video bir PDF'ten üretilmedi; PDF gönderilmeyecek.")
+    kok = Path(qlik_yukleyici.temiz_ad(qlik_adi) or onerilen + ".mp4").stem
+    if turler:
+        uz = {"video": ".mp4", "pdf": ".pdf", "ses": "." + config.QLIK_SES_FORMATI, "srt": ".srt"}
+        st.caption("Qlik'e gidecek: " + " · ".join(kok + uz[t] for t in turler if t != "pdf" or pdf))
+    if st.button("📤 Qlik'e gönder", disabled=not turler, key=f"qlik_gonder_{v.video.name}"):
+        with st.spinner("Qlik'e yükleniyor..."):
+            try:
+                sonuc = qlik_yukleyici.dosyalari_yukle(v.video, v.altyazi, pdf=pdf, ad=kok + ".mp4",
+                                                       turler=turler)
+                st.session_state.qlik_sonuc = (v.video.name, [(r.dosya, r.adres) for r in sonuc.yuklenenler],
+                                               sonuc.atlananlar)
+            except qlik_yukleyici.QlikHatasi as e:
+                st.error(f"Qlik'e yüklenemedi: {e}")
+    onceki = st.session_state.get("qlik_sonuc")
+    if onceki and onceki[0] == v.video.name:
+        st.success(f"Qlik'e yüklendi ({len(onceki[1])} dosya). Uygulamada Video player nesnesine "
+                   "video adresini verin:")
+        for dosya, adres in onceki[1]:
+            st.code(adres, language=None)
+        for a in onceki[2]:
+            st.caption(a)
 
 sol, sag = st.columns(2)
 
@@ -293,6 +319,8 @@ with sekme_slayt:
                 karakter=karakter_goster,
             )
             st.session_state.video_kaynak = st.session_state.son_dosya or "docvoice"
+            kaynak_pdf = (st.session_state.son_dosya or "").lower().endswith(".pdf")
+            st.session_state.video_pdf = st.session_state.pdf_veri if kaynak_pdf else None
             st.toast(f"Kaydedildi: output/{st.session_state.video.video.name}")
         except (VideoHatasi, TTSHatasi, ValueError) as e:
             cubuk.empty()
@@ -434,6 +462,7 @@ with sekme_pdf:
                     karakter=karakter_goster,
                 )
                 st.session_state.video_kaynak = st.session_state.pdf_adi or "docvoice"
+                st.session_state.video_pdf = st.session_state.pdf_veri
                 st.toast(f"Kaydedildi: output/{st.session_state.video.video.name}")
             except (VideoHatasi, TTSHatasi, ValueError) as e:
                 cubuk.empty()

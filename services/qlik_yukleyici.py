@@ -1,7 +1,8 @@
 """Videoyu Qlik Sense (sirket ici) content library'sine QRS API ile yukler.
 
 Akis:  POST {QLIK_URL}/qrs/contentlibrary/{kutuphane}/uploadfile?externalpath=<dosya>&overwrite=true
-       Dosya adi her seferinde ayni (yukleme_adi): eski video uzerine yazilir, kutuphanede birikme olmaz.
+       Dosya adi her seferinde ayni (yukleme_adi): eski dosyalar uzerine yazilir, kutuphanede birikme olmaz.
+       QLIK_YUKLENECEKLER ile video, kaynak PDF, ses (mp3) ve altyazi ayni adla gonderilir.
 Sonuc: video {QLIK_ICERIK_URL}/content/{kutuphane}/<dosya> adresinden izlenir
        (uygulamada Dashboard bundle > Video player nesnesine bu adres verilir).
 
@@ -207,18 +208,90 @@ def yukleme_adi(kaynak: str | Path | None, uzanti: str = ".mp4") -> str:
 def temiz_ad(ad: str, uzanti: str = ".mp4") -> str:
     """Adresi bozan karakterleri '_' yapar, uzantiyi ekler: 'APK Rapor' -> 'APK_Rapor.mp4'. Bos ad: ''"""
     kok = (ad or "").strip()
-    if kok.lower().endswith(uzanti):
-        kok = kok[: -len(uzanti)]
+    for uz in {uzanti, ".mp4", ".pdf", ".mp3", ".m4a", ".wav", ".srt"}:
+        if kok.lower().endswith(uz):
+            kok = kok[: -len(uz)]
+            break
     kok = _URL_BOZAN.sub("_", kok).strip("._-")
     return kok + uzanti if kok else ""
 
 
+@dataclass
+class TopluSonuc:
+    yuklenenler: list          # YuklemeSonucu listesi (ilki varsa video)
+    atlananlar: list           # gonderilemeyen ama hata sayilmayan dosyalar icin aciklama
+
+    @property
+    def video(self):
+        return next((r for r in self.yuklenenler if r.dosya.lower().endswith(".mp4")), None)
+
+
+def ses_cikar(video: Path, hedef: Path) -> Path:
+    """Videonun ses kanalini ayri dosyaya yazar (mp3 / m4a / wav). Doner: yazilan dosya."""
+    from services.video_builder import VideoHatasi, _calistir, ffmpeg_yolu
+
+    try:
+        ffmpeg = ffmpeg_yolu()
+    except VideoHatasi as e:
+        raise QlikHatasi(str(e)) from e
+    secenek = {
+        ".mp3": ["-c:a", "libmp3lame", "-b:a", "128k"],
+        ".m4a": ["-c:a", "copy"],                     # videodaki AAC sesi yeniden kodlamadan
+        ".wav": ["-c:a", "pcm_s16le"],
+    }.get(hedef.suffix.lower(), ["-c:a", "libmp3lame", "-b:a", "128k"])
+    try:
+        _calistir([ffmpeg, "-y", "-loglevel", "error", "-i", str(video), "-vn", *secenek, str(hedef)])
+    except VideoHatasi as e:
+        if hedef.suffix.lower() == ".m4a":
+            raise QlikHatasi(f"Videodan ses çıkarılamadı: {e}") from e
+        # FFmpeg'de mp3 kodlayici yoksa: sesi kopyalayarak m4a yap
+        yedek = hedef.with_suffix(".m4a")
+        try:
+            _calistir([ffmpeg, "-y", "-loglevel", "error", "-i", str(video), "-vn", "-c:a", "copy", str(yedek)])
+        except VideoHatasi as e2:
+            raise QlikHatasi(f"Videodan ses çıkarılamadı: {e2}") from e2
+        return yedek
+    return hedef
+
+
+def dosyalari_yukle(video: Path, altyazi: Path | None = None, pdf: Path | bytes | None = None,
+                    kaynak_adi: str | None = None, ad: str | None = None,
+                    turler: list[str] | None = None) -> TopluSonuc:
+    """Videoyu ve QLIK_YUKLENECEKLER'deki diger dosyalari AYNI adla yukler:
+    APKO_Yonetici_Ozeti.mp4 / .pdf / .mp3 (/ .srt). Ayni adli eski dosyalarin uzerine yazilir.
+    pdf: dosya yolu veya PDF'in icerigi (bytes)."""
+    import tempfile
+
+    video = Path(video)
+    kok = Path(ad or yukleme_adi(kaynak_adi or video.name)).stem
+    turler = [t.lower() for t in (turler if turler is not None else config.QLIK_YUKLENECEKLER)]
+    sonuc = TopluSonuc([], [])
+    with tempfile.TemporaryDirectory(prefix="docvoice_qlik_") as gecici:
+        gecici = Path(gecici)
+        if "video" in turler:
+            sonuc.yuklenenler.append(yukle(video, ad=f"{kok}.mp4"))
+        if "pdf" in turler:
+            if isinstance(pdf, (bytes, bytearray)):
+                yol = gecici / f"{kok}.pdf"
+                yol.write_bytes(pdf)
+                pdf = yol
+            if pdf and Path(pdf).exists():
+                sonuc.yuklenenler.append(yukle(Path(pdf), ad=f"{kok}.pdf"))
+            else:
+                sonuc.atlananlar.append("PDF gönderilmedi: bu video bir PDF'ten üretilmedi.")
+        if "ses" in turler:
+            ses = ses_cikar(video, gecici / f"{kok}.{config.QLIK_SES_FORMATI}")
+            sonuc.yuklenenler.append(yukle(ses, ad=ses.name))
+        if "srt" in turler:
+            if altyazi and Path(altyazi).exists():
+                sonuc.yuklenenler.append(yukle(Path(altyazi), ad=f"{kok}.srt"))
+            else:
+                sonuc.atlananlar.append("Altyazı (.srt) bulunamadı, gönderilmedi.")
+    return sonuc
+
+
 def video_yukle(video: Path, altyazi: Path | None = None, kaynak_adi: str | None = None,
                 ad: str | None = None) -> YuklemeSonucu:
-    """Videoyu (ve QLIK_SRT acikken altyazisini) yukler. Doner: videonun sonucu.
-    ad verilmezse yukleme_adi(kaynak_adi veya video adi) kullanilir; ayni adda dosya uzerine yazilir."""
-    ad = ad or yukleme_adi(kaynak_adi or video.name)
-    sonuc = yukle(video, ad=ad)
-    if config.QLIK_SRT and altyazi and Path(altyazi).exists():
-        yukle(altyazi, ad=Path(ad).with_suffix(".srt").name)
-    return sonuc
+    """Geriye uyumluluk: sadece video (+ QLIK_SRT acikken altyazi). Doner: videonun sonucu."""
+    turler = ["video"] + (["srt"] if config.QLIK_SRT else [])
+    return dosyalari_yukle(video, altyazi, kaynak_adi=kaynak_adi, ad=ad, turler=turler).video
