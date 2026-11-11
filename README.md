@@ -6,10 +6,13 @@ Word/PDF içeriğini şirket LLM servisine kural setiyle gönderir, SSML format�
 
 ## Kurulum
 
+Hızlı kurulum (paketler kuruluysa):
 ```
 pip install -r requirements.txt
 ```
 `.env.example` dosyasını kopyalayıp adını `.env` yapın ve değerleri doldurun.
+
+Farklı bir bilgisayarda sıfırdan kurulum için bkz. [Yeni bilgisayara kurulum](#yeni-bilgisayara-kurulum).
 
 ## Çalıştırma
 
@@ -187,3 +190,161 @@ Oluşan video, Qlik Sense (şirket içi) content library'sine QRS API ile yükle
   Başarılı bölümler `output/.tts_cache` içinde saklanır; "Video oluştur"a tekrar basınca sadece eksikler istenir.
   Sık tekrarlanıyorsa `.env` içinde `TTS_BEKLEME` değerini artırın (ör. 1 veya 2 saniye).
 - Hata mesajında gösterilen metni Bruno'da göndererek sorunun içerikten mi servisten mi kaynaklandığını ayırt edebilirsiniz.
+
+## Yeni bilgisayara kurulum
+
+Kod bu repoda; yeni bilgisayarda yeniden yazmaya gerek yoktur. Repoda **olmayan** ve ayrıca taşınması
+gerekenler: `.env` dosyası, logo dosyası, Qlik sertifika dosyaları (`client.pem`, `client_key.pem`, `root.pem`)
+ve varsa kendi kural setiniz (`rules/kurallar.txt` repodaki varsayılandır). Bunları e-posta / ortak klasör yerine
+şirketin onaylı güvenli yoluyla taşıyın; şifre ve anahtarları kimseyle paylaşmayın.
+
+1. **Python 3.12** kurun (Şirket Portalı / Yazılım Merkezi veya python.org). Kurulumda "Add python.exe to PATH"
+   seçeneğini işaretleyin. Kontrol: `python --version`
+2. **pip'i şirketin paket deposuna yönlendirin.** `Win + R` → `%APPDATA%` → `pip` klasörü (yoksa oluşturun) →
+   içine `pip.ini` (Not Defteri, kayıt türü: Tüm dosyalar):
+   ```ini
+   [global]
+   index-url = https://<sirket-artifactory-adresi>/artifactory/api/pypi/pypi-remote/simple
+   trusted-host = <sirket-artifactory-adresi>
+   ```
+   Kontrol: `pip config list`
+3. **Projeyi indirin:** GitHub'da Code → Download ZIP, örn. `C:\Users\<kullanıcı>\Documents\DocVoice` klasörüne açın.
+4. **Paketleri kurun** (proje klasöründe terminal): `pip install -r requirements.txt`
+5. **Ayarlar:** `.env.example` dosyasını kopyalayıp adını `.env` yapın ve eski bilgisayardaki değerleri girin
+   (veya eski `.env` dosyasını kopyalayın). Türkçe karakter varsa UTF-8 kaydedin. Logo ve sertifika yollarını
+   yeni bilgisayara göre düzeltin.
+6. **Çalıştırın:** `python -m streamlit run app.py` (ilk açılıştaki e-posta sorusunda Enter'a basmanız yeterli).
+   Yan panelde LLM / TTS / Qlik durumları ve varsa ayar uyarıları görünür; "Qlik bağlantısını test et" ile
+   Qlik'i kontrol edin.
+7. **Klasör izleyici (isteğe bağlı):** `IZLE_*` ayarlarını doldurup `izleyici_baslat.bat`'a çift tıklayın;
+   otomatik başlaması için kısayolunu `shell:startup` klasörüne koyun.
+
+Açılışta "Dosyalar güncel değil" uyarısı çıkarsa bir dosya eksik/eski kopyalanmıştır; tüm ZIP'i yeniden açın.
+
+### Kurulum için yapay zekâ asistanına verilecek prompt
+
+Kurulumda takılırsanız aşağıdaki metni Claude'a (veya başka bir asistana) yapıştırabilirsiniz:
+
+```
+Şirket bilgisayarına (Windows, yönetici yetkisi ve VS Code eklenti kurulumu kısıtlı, internete doğrudan
+pip erişimi yok) DocVoice adlı bir Python 3.12 + Streamlit projesini kuracağım. Kod GitHub reposunda hazır
+(README'de "Yeni bilgisayara kurulum" adımları var). pip paketleri yalnızca şirketin JFrog Artifactory
+PyPI deposundan (<sirket-artifactory-adresi>, api/pypi/pypi-remote/simple) kurulabiliyor; pip.ini ayarını
+%APPDATA%\pip\pip.ini içinde yapmam gerekiyor. Şirket SSL sertifikaları için truststore paketi kullanılıyor.
+Bana adım adım, her adımda çalıştırmam gereken komutu ve beklenen çıktıyı vererek eşlik et. Hata alırsam
+ekran görüntüsü paylaşacağım. Şifre, token ve iç adresleri benden isteme; yerlerine <...> yaz.
+```
+
+## Sıfırdan yeniden oluşturma promptu
+
+Projeyi kod olmadan, baştan bir yapay zekâ asistanıyla yeniden geliştirmek gerekirse (örn. repoya erişim yoksa)
+aşağıdaki prompt bugüne kadar yapılan her şeyi ve alınan dersleri içerir. Köşeli parantezli yerleri kendi
+bilgilerinizle doldurun; token ve şifreleri prompta yazmayın, `.env`'ye kendiniz girin.
+
+```
+Benimle birlikte "DocVoice" adlı bir Python uygulaması geliştirmeni istiyorum. Türkçe konuş, kodu ve dosya
+adlarını Türkçe (ASCII) tut. Kodu bir GitHub reposuna dosya dosya yükle; repo herkese açık olabilir, bu yüzden
+iç adres, token, şifre ve e-posta asla koda/repoya girmesin, hepsi .env'den okunsun (.env repoya gitmesin,
+.env.example yer tutucularla olsun).
+
+ORTAM KISITLARI
+- Şirket bilgisayarı, Windows. VS Code var ama eklenti kurulamıyor; Visual Studio kullanmıyoruz.
+- Python 3.12. pip yalnızca şirket Artifactory'sinden: %APPDATA%\pip\pip.ini içinde
+  index-url = https://<artifactory>/artifactory/api/pypi/pypi-remote/simple, trusted-host = <artifactory>.
+- Şirket SSL sertifikaları: truststore paketiyle Windows sertifika deposu kullanılsın. truststore'u global
+  enjekte ETME (inject_into_ssl): Qlik'in kendi root.pem'i ile doğrulamayı bozuyor ve RecursionError veriyor.
+  Bunun yerine config.ssl_dogrulama() fonksiyonu httpx'e verify=truststore.SSLContext(...) döndürsün;
+  standart ssl.SSLContext'i ORIJINAL_SSLCONTEXT olarak sakla.
+- Bana kod parçası yapıştırmak yerine dosyaların tamamını ver (kopyala-yapıştırda girinti bozuluyor).
+  Projede bir dosya_kontrol.py olsun: açılışta modüllerin beklenen fonksiyon/ayarları içerip içermediğini
+  kontrol edip "X dosyası güncel değil" desin (eski dosya kopyalandığında anlaşılır hata için).
+
+AKIŞ
+Word/PDF/TXT içeriği → şirket LLM servisi (kural seti + içerik) → SSML → şirket TTS servisi → ses → MP4 video
+→ (isteğe bağlı) Qlik Sense content library'ye yükleme.
+
+LLM SERVİSİ
+- POST <LLM_URL>, header: x-application-name: <uygulama adı>, Content-Type: application/json
+  (gerekirse Authorization: Bearer).
+- Body: {"messages":[{"role":"system","content":"<kural seti>"},{"role":"user","content":"<içerik>"}]}
+- Yanıt: {"result":1,"error":null,"errorCode":null,"content":"<SSML: <prosody>, <break> etiketleri>"}.
+  result!=1 veya error doluysa hata göster. Yanıt 3 dakikadan uzun sürebilir: zaman aşımı 400 sn.
+- PDF modunda her sayfa ayrı istek, LLM_PARALEL (3) kadar eş zamanlı. LLM'den dönen SSML'de bozuk/eşleşmeyen
+  etiketler olabilir ("mismatched tag"): ssml_onar ile düzelt.
+
+TTS SERVİSİ (Azure cognitiveservices/v1 uyumlu)
+- POST <TTS_URL>, header: Content-Type: application/ssml+xml, X-Microsoft-OutputFormat:
+  audio-24khz-48kbitrate-mono-mp3, Ocp-Apim-Subscription-Key: <anahtar>.
+- Gövde: <speak version="1.0" xml:lang="tr-TR" ...><voice name="<ses adı>"><lexicon uri="<isteğe bağlı>"/>
+  ...LLM'den gelen içerik...</voice></speak> (LLM zarf eklediyse kaldırıp yeniden kur).
+- 503/429'da üstel bekleme ile tekrar dene (TTS_RETRY=4), istekler arası küçük bekleme (0.3 sn),
+  aynı metin için diskte önbellek.
+
+ARAYÜZ (Streamlit, adımlı)
+1) Kural seti textarea (rules/kurallar.txt'ye kaydet) 2) İçerik: Word/PDF/TXT yükle veya yaz
+3) LLM'e gönder, sonuç düzenlenebilir 4) Seslendir, dinle/indir 5) Video: "Altyazı göster" ve
+"Konuşan karakter" anahtarları, karakter seçimi; sekmeler: Slayt modu ve PDF sayfa modu.
+Yan panelde servis durumları, .env ayar uyarıları (geçersiz renk, bulunamayan logo vb.), Qlik bağlantı testi.
+.streamlit/config.toml ile e-posta sorusunu ve istatistik toplamayı kapat. Renk ayarlarını toleranslı oku
+(#E30613, E30613, red, rgb(...)); hatalıysa varsayılanı kullan ve uyar. Yol ayarlarında tırnak, ~, %VAR%,
+göreli yol ve "\" kaçış sorunlarını tolere et.
+
+VİDEO (FFmpeg imageio-ffmpeg paketiyle gelsin, ayrı kurulum olmasın; 1920x1080, H.264 + AAC, ayrıca .srt)
+- SSML <break> noktalarından bölümlere ayrılsın, her bölüm ayrı seslendirilsin (geçiş ve altyazı senkronu için).
+- Slayt modu: her bölüm kurumsal tasarımlı başlıklı slayt (renk/logo .env'den; koyu logoya otomatik açık zemin).
+- PDF sayfa modu: her PDF sayfası (pypdfium2 ile görsel) arka planda, o sayfanın seslendirmesi bitince sonraki
+  sayfa. Metni olmayan sayfa 3 sn sessiz. Boş kenarlar kırpılıp tam ekran; sayfa numarası gösterilmesin.
+- Sayfa metinleri kaynağı: PDF'ten / Word dosyasından (LLM'e gönder) / hazır metin (LLM'siz, doğrudan
+  seslendir). Word formatı: her sayfa metninden önce ayrı satırda "Sayfa N" (başlık stili, büyük harf,
+  "Sayfa 5: metin" de olur); hiç yoksa Word sayfa sonlarına göre böl. TXT için UTF-8 ve cp1254 dene.
+- Altyazı isteğe bağlı; noktalama işaretleri gösterilmesin (sayı içi ayraç ve kelime içi kesme korunur);
+  kutusuz, konturlu beyaz kalın yazı ve hafif gölge (siyah kutu/gölge bandı olmasın); altta ince ilerleme çizgisi.
+- Sunum görünümü (PDF modu): PDF'teki gösterge (KPI) kartlarını pdfplumber ile oku (etiket, birim, değer,
+  renk, ok yönü, yorum) ve modern kutucuklar olarak yeniden çiz; konuya göre satırlara grupla; anlatıcı o
+  metriği (ör. "bakiye", "faiz") söylediği anda ilgili satırı/kartı vurgula. Kart bulunamazsa sayfa görseli.
+- Konuşan karakter (tamamen yerelde, ek servis yok; ham RGBA kareleri FFmpeg'e pipe ile ver, overlay et):
+  a) Sunucu: özgün, tüm vücudu görünen 2D kadın sunucu (gerçek bir kişiye benzetme yapma). İskelet tabanlı
+     kollar/eller/bacaklar, doğal omuz birleşimi; ağız ses şiddetine (RMS) göre kare kare, göz kırpma, nefes,
+     baş hareketi; her sayfa başında sola, içeriğe doğru kolunu uzatıp göstersin; cümle başlarında anlatma/
+     gösterme/açık el jestleri, 5 sn'den uzun hareketsiz kalmasın. Katmanları lru_cache ile önbelleğe al
+     (kare başı ~10 ms hedef).
+  b) Maskot: kurumsal maskotumuz olan kıvırcık tüylü, turuncu yelekli köpek (görselini paylaşacağım):
+     konuşurken ağız/dil, kuyruk sallama, kafa yatırma, yeni sayfada pati kaldırma, arada zıplama.
+  c) Özel: KARAKTER_KLASORU'ndaki kapali/yarim/acik/kirpik.png ile basit ağız senkronu.
+  İçerik ve altyazı karakterin solundaki alana yerleşsin; boyut VIDEO_KARAKTER_BOYUT (0.8).
+
+KLASÖR İZLEYİCİ (izleyici.py + izleyici_baslat.bat)
+- IZLE_KLASORU'na düşen PDF'leri kopyalama bitince (boyut sabitliği + %%EOF kontrolü) al, videoya çevir,
+  IZLE_HEDEF_KLASORU'na <pdf adı>.mp4 (+ .srt) koy. Alt klasörler: isleniyor/ (yarıda kalan yeniden kuyruğa),
+  islenen/, hatali/ (+ .hata.txt). LLM ve TTS sonuçları önbellekte, yeniden denemede tekrar istenmesin.
+  Log: logs/izleyici.log. --bir-kez seçeneği.
+- PDF'ler NPrinting'den başında tarihle gelir (20261028_APK_Rapor.pdf, 2026-10-28 ..., 28.10.2026- ...):
+  tarih önekini regex ile yok sayarak eşleştir. Aynı adlı Word (aynı tarihli) o güne özel: PDF ile taşınır;
+  tarihsiz Word (APK_Rapor.docx) sabit şablon: klasörde kalır.
+
+QLIK SENSE (şirket içi, QRS API)
+- Yükleme: POST {QLIK_URL}/qrs/contentlibrary/{kütüphane}/uploadfile?externalpath=<ad>&overwrite=true&xrfkey=<16
+  karakter>, aynı xrfkey X-Qlik-Xrfkey header'ında. Dosyayı akış olarak gönder. Yanıt düz metin/JSON metni
+  olarak "/content/<kütüphane>/<ad>" dönebilir (nesne varsayma). İzleme adresi: https://<sunucu>/content/
+  <kütüphane>/<ad> (uygulamada Dashboard bundle > Video player).
+- Kimlik: (a) sertifika: 4242 portu, client.pem + client_key.pem + root.pem, header
+  X-Qlik-User: UserDirectory=<DOMAIN>; UserId=<kullanıcı>; (b) header ile kimlik doğrulayan virtual proxy.
+- Bana sadece "dosyayı bırakacağın klasör" olarak https://<sunucu>/content/<kütüphane> adresi verildi:
+  QLIK_URL'ye bu yazılırsa kütüphane adını ve izleme adresini çıkar, yükleme adresini tahmin et
+  (sertifika: https://<sunucu>:4242) ve yan panelde göster.
+- Dosya adı sabit ve üzerine yazılsın (birikme olmasın): QLIK_DOSYA_ADI (ör. <Rapor_Adı>) veya kaynak dosya
+  adının tarihsiz hali. Aynı adla video (.mp4), kaynak PDF (.pdf) ve videodan FFmpeg ile çıkarılan ses (.mp3)
+  gönderilsin (QLIK_YUKLENECEKLER=video,pdf,ses[,srt]). Arayüzde ad ve dosya seçimi değiştirilebilsin.
+- İzleyicide IZLE_QLIK=true ise otomatik yükle; başarısızsa videonun yanına .qlik_bekliyor işareti (deneme
+  sayısı, PDF yolu, hata) bırak, 5 dk'da bir en fazla 12 kez tekrar dene.
+- Hata mesajları anlaşılır olsun: 401 kimlik, 403 yetki (xrfkey hatasıyla ayır; gönderilen kullanıcıyı yaz;
+  kütüphane için Create/Read/Update/Delete izni gerekir), 404 kütüphane yok, 409 aynı ad, 413 boyut.
+
+ÇALIŞMA ŞEKLİ
+- Her özelliği sahte LLM/TTS/QRS sunucularıyla test et, sonra repoya yükle; README ve .env.example'ı güncel tut.
+- Önce küçük bir ortam testi (test_ortam.py) ile Python, paketler ve servislere erişimi doğrulayalım,
+  sonra adım adım (LLM → TTS → video → izleyici → karakter → Qlik) ilerleyelim.
+- Servislerin gerçek header/body örneklerini ve ekran görüntülerini (Bruno) ben paylaşacağım; tahmin
+  ettiğin yerleri açıkça belirt.
+```
+
