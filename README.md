@@ -211,6 +211,10 @@ ve varsa kendi kural setiniz (`rules/kurallar.txt` repodaki varsayılandır). Bu
    trusted-host = <sirket-artifactory-adresi>
    ```
    Kontrol: `pip config list`
+
+   > `python` komutu çalışmayan bilgisayarlarda (sunucu gibi) yerine `py` kullanın: `py --version`,
+   > `py -m pip config list`, `py -m pip install ...`, `py -m streamlit run app.py`. Bat dosyaları `py`'yi
+   > kendileri bulur.
 3. **Projeyi indirin:** GitHub'da Code → Download ZIP, örn. `C:\Users\<kullanıcı>\Documents\DocVoice` klasörüne açın.
 4. **Paketleri kurun:** proje klasöründeki `kurulum.bat`'a çift tıklayın. Paketler proje içindeki `.venv`
    klasörüne kurulur; tüm bat dosyaları otomatik olarak bu Python'u kullanır. (Elle: `pip install -r requirements.txt`)
@@ -363,6 +367,7 @@ QLIK SENSE (şirket içi, QRS API)
 
 Repodaki bat dosyalarını açamıyorsanız içeriklerini buradan kopyalayın. Not Defteri'ne yapıştırıp proje klasörüne
 aşağıdaki adla kaydedin (Kayıt türü: **Tüm dosyalar**, yoksa `.txt` uzantısıyla kaydedilir).
+Python sırasıyla şöyle bulunur: proje içindeki `.venv` → `DOCVOICE_PYTHON` ortam değişkeni → `py` → `python`.
 
 ### kurulum.bat
 
@@ -372,11 +377,15 @@ Sunucuda / yeni bilgisayarda **bir kez elle** çalıştırın: proje içine `.ve
 @echo off
 REM DocVoice kurulum: proje klasorune .venv (ayri Python ortami) olusturur ve paketleri oraya kurar.
 REM Bir kez calistirin (requirements.txt degisirse tekrar). pip ayarlari %APPDATA%\pip\pip.ini'den okunur.
+REM Python once "py" (Python Launcher), yoksa "python" komutuyla bulunur.
 REM Farkli bir Python ile kurmak icin: kurulum.bat "C:\Program Files\Python312\python.exe"
 setlocal
 cd /d "%~dp0"
-set "TABAN=python"
+set "TABAN="
 if not "%~1"=="" set "TABAN=%~1"
+if not defined TABAN (where py >nul 2>nul && set "TABAN=py")
+if not defined TABAN set "TABAN=python"
+echo Kurulumda kullanilan Python: %TABAN%
 
 if exist ".venv\Scripts\python.exe" goto paketler
 echo Sanal ortam olusturuluyor: %~dp0.venv
@@ -402,7 +411,7 @@ pause
 exit /b 1
 
 :hata_pip
-echo HATA: paketler kurulamadi. pip.ini ayarini kontrol edin: pip config list
+echo HATA: paketler kurulamadi. pip.ini ayarini kontrol edin: py -m pip config list
 pause
 exit /b 1
 ```
@@ -417,10 +426,11 @@ REM DocVoice klasor izleyici - app launcher / Gorev Zamanlayici / hizmet icin (s
 REM Elle baslatmak icin izleyici_baslat.bat dosyasini kullanin.
 setlocal
 cd /d "%~dp0"
-REM Python secimi: 1) proje icindeki .venv (kurulum.bat olusturur)  2) DOCVOICE_PYTHON ortam degiskeni  3) PATH'teki python
+REM Python secimi: 1) proje icindeki .venv (kurulum.bat olusturur)  2) DOCVOICE_PYTHON ortam degiskeni  3) py  4) python
 set "PY="
 if exist "%~dp0.venv\Scripts\python.exe" set "PY=%~dp0.venv\Scripts\python.exe"
 if not defined PY if defined DOCVOICE_PYTHON set "PY=%DOCVOICE_PYTHON%"
+if not defined PY (where py >nul 2>nul && set "PY=py")
 if not defined PY set "PY=python"
 echo Python: %PY%
 "%PY%" "%~dp0izleyici.py" %*
@@ -451,10 +461,11 @@ REM DocVoice arayuzu (Streamlit) - cift tiklayarak baslatin, kapatmak icin Ctrl+
 setlocal
 cd /d "%~dp0"
 title DocVoice
-REM Python secimi: 1) proje icindeki .venv (kurulum.bat olusturur)  2) DOCVOICE_PYTHON ortam degiskeni  3) PATH'teki python
+REM Python secimi: 1) proje icindeki .venv (kurulum.bat olusturur)  2) DOCVOICE_PYTHON ortam degiskeni  3) py  4) python
 set "PY="
 if exist "%~dp0.venv\Scripts\python.exe" set "PY=%~dp0.venv\Scripts\python.exe"
 if not defined PY if defined DOCVOICE_PYTHON set "PY=%DOCVOICE_PYTHON%"
+if not defined PY (where py >nul 2>nul && set "PY=py")
 if not defined PY set "PY=python"
 echo Python: %PY%
 "%PY%" -m streamlit run "%~dp0app.py"
