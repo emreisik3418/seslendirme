@@ -4,3 +4,7 @@ __pycache__/
 output/
 *.pyc
 logs/
+# kisi fotograflari repoya gitmez
+karakter_foto/
+*.jpg
+*.jpeg

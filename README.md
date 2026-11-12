@@ -43,6 +43,7 @@ services/pdf_kartlar.py      PDF'teki gösterge kartlarını (KPI) okur: etiket,
 services/sunum_cizim.py      Kartları modern sunum slaytı olarak çizer, anlatıma göre vurgular
 services/figur.py            Tüm vücut animasyonlu sunucu (jestler, nefes, baş hareketi)
 services/maya.py             Maskot Maya: kıvırcık tüylü köpek (dil, kuyruk, kafa yatırma, pati)
+services/foto_karakter.py    Fotoğraftan konuşan yüz (yuvarlak çerçeve, ağız / göz / baş animasyonu)
 services/karakter.py         Sesten dudak senkronu; kendi görsel setinizle basit karakter
 services/video_builder.py    Slayt çizimi + FFmpeg ile MP4 ve SRT üretimi
 output/                      Üretilen ses dosyaları (repoya gitmez)
@@ -93,7 +94,7 @@ sayfalar sayfa görseliyle gösterilir. Kartlar PDF içinde seçilebilir metin o
 tablolar okunamaz).
 
 **Konuşan karakter:** 5. adımdaki "Konuşan karakter" anahtarı açıksa sağ alt köşede animasyonlu bir karakter
-gösterilir; iki seçenek var (izleyici için `VIDEO_KARAKTER_TIPI=sunucu|maya`):
+gösterilir; seçenekler (izleyici için `VIDEO_KARAKTER_TIPI=sunucu|maya|foto`):
 
 *Maya (maskot):* turuncu kapitone yelekli, kıvırcık tüylü köpek. Konuşurken ağzı açılıp dili görünür, kuyruğunu
 sallar, merakla başını yana yatırır, kulakları sallanır; yeni sayfada patisini kaldırıp içeriği gösterir,
@@ -107,6 +108,14 @@ arada mutlu zıplar.
 - Nefes alır gibi hafifçe yükselip alçalır, salınır, konuşurken başını hafifçe eğip sallar.
 İçerik ve altyazı figürün solundaki alana yerleşir. Boyutu `VIDEO_KARAKTER_BOYUT` ile ayarlanır (varsayılan 0.8).
 Tamamen yerelde üretilir, ek servis gerekmez.
+
+*Fotoğraf (yuvarlak):* kullanım izni olan bir kişinin önden çekilmiş fotoğrafı, sağ altta yuvarlak çerçeve
+içinde konuşur. `.env`'de `KARAKTER_FOTO=C:/.../sunucu.jpg` verin (fotoğraf repoya konmaz). Gözler ve ağız
+fotoğraftan otomatik bulunur; ağız sesle senkron açılır (dişler ve ağız içi çizilir), göz kırpar, baş hafifçe
+sallanır ve cümle başlarında onaylar gibi hareket eder. Düz siyah veya beyaz arka plan ayıklanır, yerine
+`KARAKTER_FOTO_ZEMIN` rengi gelir. Arayüzde karakter seçilince ağız ve göz halleri önizlenir; yanlış bulunduysa
+`KARAKTER_FOTO_NOKTALAR=sol_göz_x,y;sağ_göz_x,y;ağız_x,y` (fotoğraf pikselleri) ile elle verilir.
+Fotoğrafta ağız kapalı olmalı; çerçeve boyutu `VIDEO_KARAKTER_BOYUT` ile ayarlanır.
 
 Kendi karakterinizi kullanmak için `.env` içinde `KARAKTER_KLASORU` ile şeffaf arka planlı PNG'lerin bulunduğu
 klasörü verin: `kapali.png`, `yarim.png`, `acik.png` (ağız halleri, zorunlu) ve isteğe bağlı `kirpik.png`.
@@ -326,6 +335,9 @@ VİDEO (FFmpeg imageio-ffmpeg paketiyle gelsin, ayrı kurulum olmasın; 1920x108
   b) Maskot: kurumsal maskotumuz olan kıvırcık tüylü, turuncu yelekli köpek (görselini paylaşacağım):
      konuşurken ağız/dil, kuyruk sallama, kafa yatırma, yeni sayfada pati kaldırma, arada zıplama.
   c) Özel: KARAKTER_KLASORU'ndaki kapali/yarim/acik/kirpik.png ile basit ağız senkronu.
+  d) Fotoğraf: kullanım izni olan bir kişinin fotoğrafından yuvarlak çerçevede konuşan yüz; gözler ve
+     dudaklar YCrCb renk analiziyle otomatik bulunsun (elle nokta verme seçeneği), ağız açma dudak
+     çizgisinin altını kaydırıp ağız içi/diş çizerek, göz kırpma kapak derisini gererek yapılsın.
   İçerik ve altyazı karakterin solundaki alana yerleşsin; boyut VIDEO_KARAKTER_BOYUT (0.8).
 
 KLASÖR İZLEYİCİ (izleyici.py + izleyici_baslat.bat)

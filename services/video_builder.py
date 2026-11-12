@@ -447,8 +447,10 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True,
             str(video),
         ]
         tip = karakter_tipi(karakter)
-        if tip in ("sunucu", "maya"):
+        if tip in ("sunucu", "maya", "foto"):
             bildir(0.8, "Karakter canlandırılıyor")
+            if tip == "foto":
+                _foto_kontrol()
             _figurlu_video(ffmpeg, liste, tum_ses, sahne_baslari, cumle_baslari, cikis_secenekleri,
                            _figur_modulu(tip))
             komut = None
@@ -485,29 +487,45 @@ def _uret(sahneler: list[Sahne], ilerleme, on_ek: str, altyazi: bool = True,
 
 
 # ------------------------------------------------------------ karakter
-KARAKTERLER = {"sunucu": "Sunucu (kadın)", "maya": "Maya (maskot)", "ozel": "Kendi görselim"}
+KARAKTERLER = {"sunucu": "Sunucu (kadın)", "maya": "Maya (maskot)", "foto": "Fotoğraf (yuvarlak)",
+               "ozel": "Kendi görselim"}
 
 
 def karakter_tipi(karakter) -> str | None:
-    """karakter: False/None (yok), True (.env'deki VIDEO_KARAKTER_TIPI) veya 'sunucu' / 'maya' / 'ozel'."""
+    """karakter: False/None (yok), True (.env'deki VIDEO_KARAKTER_TIPI) veya 'sunucu' / 'maya' / 'foto' / 'ozel'."""
     if not karakter:
         return None
     tip = config.VIDEO_KARAKTER_TIPI if karakter is True else str(karakter)
     if tip == "ozel" and not _ozel_karakter():
         tip = "sunucu"      # kendi gorsel seti yoksa varsayilan sunucu
+    if tip == "foto" and not config.KARAKTER_FOTO:
+        tip = "sunucu"      # fotograf tanimli degilse varsayilan sunucu
     return tip if tip in KARAKTERLER else "sunucu"
 
 
 def kullanilabilir_karakterler() -> dict[str, str]:
-    return {k: v for k, v in KARAKTERLER.items() if k != "ozel" or _ozel_karakter()}
+    return {k: v for k, v in KARAKTERLER.items()
+            if (k != "ozel" or _ozel_karakter()) and (k != "foto" or config.KARAKTER_FOTO)}
 
 
 def _figur_modulu(tip: str):
     if tip == "maya":
         from services import maya
         return maya
+    if tip == "foto":
+        from services import foto_karakter
+        return foto_karakter
     from services import figur
     return figur
+
+
+def _foto_kontrol():
+    """Fotograf karakteri hazirlanabiliyor mu (yuz noktalari bulundu mu)? Degilse anlasilir hata."""
+    from services import foto_karakter
+    try:
+        foto_karakter.kare_ekran(foto_karakter.Durum(0, False, 0, 0))
+    except foto_karakter.FotoHatasi as e:
+        raise VideoHatasi(f"Fotoğraf karakteri: {e}") from e
 
 
 def _ozel_karakter() -> bool:
@@ -607,7 +625,7 @@ class _karakter_alani:
 
 def video_olustur(icerik: str, ilerleme=None, altyazi: bool = True,
                   karakter=False) -> VideoSonucu:
-    """Slayt modu. karakter: False, True veya 'sunucu' / 'maya' / 'ozel'. icerik: LLM'den gelen SSML. ilerleme: fn(oran 0-1, mesaj)"""
+    """Slayt modu. karakter: False, True veya 'sunucu' / 'maya' / 'foto' / 'ozel'. icerik: LLM'den gelen SSML. ilerleme: fn(oran 0-1, mesaj)"""
     bolumler = bolumlere_ayir(icerik)
     if not bolumler:
         raise VideoHatasi("Seslendirilecek metin bulunamadi.")

@@ -159,8 +159,18 @@ IZLE_SRT = _bool("IZLE_SRT", True)                   # .srt altyazi dosyasini da
 
 # Kendi karakter gorselleriniz (kapali.png, yarim.png, acik.png, kirpik.png); bos: yerlesik karakter
 KARAKTER_KLASORU = _yol("KARAKTER_KLASORU")
-# Varsayilan karakter: sunucu (kadin), maya (maskot) veya ozel (KARAKTER_KLASORU'ndaki gorseller)
-VIDEO_KARAKTER_TIPI = (os.getenv("VIDEO_KARAKTER_TIPI") or ("ozel" if KARAKTER_KLASORU else "sunucu")).strip().lower()
+# Fotograftan konusan karakter (yuvarlak cerceve). Fotograf repoya konmaz; yolunu buraya yazin.
+KARAKTER_FOTO = _yol("KARAKTER_FOTO")
+if KARAKTER_FOTO and not KARAKTER_FOTO.exists():
+    UYARILAR.append(f"KARAKTER_FOTO dosyası bulunamadı: {KARAKTER_FOTO}")
+    KARAKTER_FOTO = None
+# Otomatik bulunamazsa: sol_goz_x,sol_goz_y;sag_goz_x,sag_goz_y;agiz_x,agiz_y (fotograf pikselleri)
+KARAKTER_FOTO_NOKTALAR = (os.getenv("KARAKTER_FOTO_NOKTALAR") or "").strip().strip("'\"")
+# Cerceve icindeki zemin: renk (#EEF2F7) veya "orijinal" (fotografin kendi arka plani)
+KARAKTER_FOTO_ZEMIN = (os.getenv("KARAKTER_FOTO_ZEMIN") or "").strip().strip("'\"")
+# Varsayilan karakter: sunucu (kadin), maya (maskot), foto (KARAKTER_FOTO) veya ozel (KARAKTER_KLASORU)
+VIDEO_KARAKTER_TIPI = (os.getenv("VIDEO_KARAKTER_TIPI")
+                       or ("foto" if KARAKTER_FOTO else "ozel" if KARAKTER_KLASORU else "sunucu")).strip().lower()
 
 # --- Qlik Sense (QRS API ile content library'ye video yukleme) ---
 QLIK_URL = (os.getenv("QLIK_URL") or "").strip().rstrip("/")       # https://qliksunucu:4242 veya https://qliksunucu/vproxy

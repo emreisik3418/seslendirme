@@ -305,6 +305,14 @@ if karakter_acik:
     varsayilan = config.VIDEO_KARAKTER_TIPI if config.VIDEO_KARAKTER_TIPI in anahtarlar else anahtarlar[0]
     karakter_goster = t2.radio("Karakter", anahtarlar, index=anahtarlar.index(varsayilan),
                                format_func=secenekler.get, horizontal=True)
+    if karakter_goster == "foto":
+        from services import foto_karakter
+        try:
+            t2.image(foto_karakter.onizleme(),
+                     caption="Ağız kapalı · yarım · açık · göz kırpma (gözler ve ağız fotoğraftan otomatik bulundu)",
+                     use_container_width=True)
+        except foto_karakter.FotoHatasi as e:
+            t2.error(f"Fotoğraf karakteri hazırlanamadı: {e}")
 sekme_slayt, sekme_pdf = st.tabs(["🖼️ Slayt modu", "📄 PDF sayfa modu"])
 
 with sekme_slayt:
