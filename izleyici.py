@@ -33,11 +33,11 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from dosya_kontrol import MESAJ, eksikleri_bul
+from dosya_kontrol import kontrol
 
-_sorunlar = eksikleri_bul()
+_baslik, _sorunlar, _cozum = kontrol()
 if _sorunlar:
-    print("Dosyalar güncel değil:\n" + "\n".join(f"  - {s}" for s in _sorunlar) + f"\n\n{MESAJ}")
+    print(f"{_baslik}:\n" + "\n".join(f"  - {s}" for s in _sorunlar) + (f"\n\n{_cozum}" if _cozum else ""))
     sys.exit(1)
 
 import config  # noqa: E402

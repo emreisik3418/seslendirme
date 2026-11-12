@@ -4,6 +4,14 @@ Dosyalar tek tek kopyalandiginda biri eski kalirsa uygulama anlasilmaz bir hatay
 yerine hangi dosyanin guncellenmesi gerektigini soyler.
 """
 import importlib
+import importlib.util
+import sys
+
+# Uygulamanin ihtiyac duydugu Python paketleri: ice aktarma adi -> pip paket adi
+GEREKLI_PAKETLER = {
+    "dotenv": "python-dotenv", "httpx": "httpx", "docx": "python-docx", "pdfplumber": "pdfplumber",
+    "PIL": "Pillow", "imageio_ffmpeg": "imageio-ffmpeg", "truststore": "truststore",
+}
 
 # Kodun kullandigi tum config ayarlari
 GEREKLI_AYARLAR = """
@@ -31,6 +39,29 @@ GEREKLI_MODULLER = {
     "services.maya": ["animasyon", "kare_ekran", "boyut", "sag_alan", "konum"],
     "services.sunum_cizim": ["sunum_slayti", "SunumCizici"],
 }
+
+
+def eksik_paketler() -> list[str]:
+    """Calisan Python'da kurulu olmayan paketlerin pip adlari."""
+    return [pip_adi for modul, pip_adi in GEREKLI_PAKETLER.items() if importlib.util.find_spec(modul) is None]
+
+
+def paket_mesaji(eksik: list[str]) -> str:
+    return (f"Bu Python'da gerekli paketler kurulu değil: {', '.join(eksik)}\n"
+            f"Çalışan Python: {sys.executable}\n"
+            "Paketler başka bir Python'a veya kullanıcı profilinize kurulmuş olabilir (bat dosyası zamanlayıcı / "
+            "app launcher / hizmet ile başlatıldığında kullanıcı profili yüklenmez). Çözüm: proje klasöründe "
+            "kurulum.bat'ı bir kez çalıştırın; paketler proje içindeki .venv klasörüne kurulur ve bat dosyaları "
+            f"onu kullanır. Alternatif: \"{sys.executable}\" -m pip install -r requirements.txt")
+
+
+def kontrol() -> tuple[str, list[str], str]:
+    """Doner: (baslik, sorunlar, cozum). Sorun yoksa sorunlar bos liste."""
+    eksik = eksik_paketler()
+    if eksik:
+        return "Python paketleri eksik", [paket_mesaji(eksik)], ""
+    sorunlar = eksikleri_bul()
+    return "Dosyalar güncel değil", sorunlar, MESAJ
 
 
 def eksikleri_bul() -> list[str]:
@@ -65,3 +96,11 @@ def eksikleri_bul() -> list[str]:
 MESAJ = ("Bazı proje dosyaları birbiriyle uyumsuz; büyük ihtimalle biri eski kaldı. "
          "En kolayı repodan tüm projeyi indirip (Code → Download ZIP) .env dosyanızı koruyarak üzerine "
          "kopyalamak. Ardından uygulamayı Ctrl+C ile durdurup yeniden başlatın.")
+
+
+if __name__ == "__main__":
+    baslik, sorunlar, cozum = kontrol()
+    if sorunlar:
+        print(baslik + ":\n" + "\n".join(f"  - {x}" for x in sorunlar) + (f"\n\n{cozum}" if cozum else ""))
+        sys.exit(1)
+    print(f"Tüm paketler ve dosyalar uyumlu. Python: {sys.executable}")

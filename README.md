@@ -26,7 +26,10 @@ Tarayıcıda `http://localhost:8501` açılır. Kapatmak için terminalde `Ctrl 
 ```
 app.py                       Arayüz (Streamlit)
 izleyici.py                  Klasör izleyici: gelen PDF'leri otomatik videoya çevirir
+kurulum.bat                  Proje içine .venv oluşturup paketleri kurar (bir kez çalıştırılır)
 izleyici_baslat.bat          İzleyiciyi Windows'ta çift tıklayarak başlatır
+izleyici_servis.bat          İzleyiciyi app launcher / Görev Zamanlayıcı / hizmet ile başlatmak için (tuş beklemez)
+uygulama_baslat.bat          Arayüzü (Streamlit) çift tıklayarak başlatır
 dosya_kontrol.py             Açılışta proje dosyalarının birbiriyle uyumunu kontrol eder
 services/qlik_yukleyici.py   Videoyu Qlik Sense content library'ye yükler (QRS API)
 config.py                    .env'den ayarları okur
@@ -209,7 +212,8 @@ ve varsa kendi kural setiniz (`rules/kurallar.txt` repodaki varsayılandır). Bu
    ```
    Kontrol: `pip config list`
 3. **Projeyi indirin:** GitHub'da Code → Download ZIP, örn. `C:\Users\<kullanıcı>\Documents\DocVoice` klasörüne açın.
-4. **Paketleri kurun** (proje klasöründe terminal): `pip install -r requirements.txt`
+4. **Paketleri kurun:** proje klasöründeki `kurulum.bat`'a çift tıklayın. Paketler proje içindeki `.venv`
+   klasörüne kurulur; tüm bat dosyaları otomatik olarak bu Python'u kullanır. (Elle: `pip install -r requirements.txt`)
 5. **Ayarlar:** `.env.example` dosyasını kopyalayıp adını `.env` yapın ve eski bilgisayardaki değerleri girin
    (veya eski `.env` dosyasını kopyalayın). Türkçe karakter varsa UTF-8 kaydedin. Logo ve sertifika yollarını
    yeni bilgisayara göre düzeltin.
@@ -218,6 +222,13 @@ ve varsa kendi kural setiniz (`rules/kurallar.txt` repodaki varsayılandır). Bu
    Qlik'i kontrol edin.
 7. **Klasör izleyici (isteğe bağlı):** `IZLE_*` ayarlarını doldurup `izleyici_baslat.bat`'a çift tıklayın;
    otomatik başlaması için kısayolunu `shell:startup` klasörüne koyun.
+
+**Sunucuda / app launcher ile çalıştırma:** Launcher, zamanlayıcı veya hizmet bat dosyasını başlattığında Windows
+kullanıcı profili (PATH, `%APPDATA%`) yüklenmeyebilir; profile kurulan paketler görünmez ve
+`No module named 'dotenv'` hatası alınır, oysa elle çalıştırınca sorun olmaz. Çözüm: sunucuda `kurulum.bat`'ı
+bir kez elle çalıştırın (paketler `.venv`'e kurulur) ve launcher'a `izleyici_servis.bat` dosyasını tanımlayın
+(çalışma klasörü: proje klasörü). Log'un başında `Python: ...\.venv\Scripts\python.exe` görünmelidir.
+`.venv` kullanılamıyorsa `DOCVOICE_PYTHON` ortam değişkenine python.exe'nin tam yolunu yazabilirsiniz.
 
 Açılışta "Dosyalar güncel değil" uyarısı çıkarsa bir dosya eksik/eski kopyalanmıştır; tüm ZIP'i yeniden açın.
 

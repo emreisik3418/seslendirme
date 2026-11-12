@@ -9,13 +9,14 @@ from pathlib import Path
 
 import streamlit as st
 
-from dosya_kontrol import MESAJ, eksikleri_bul
+from dosya_kontrol import kontrol
 
-_sorunlar = eksikleri_bul()
+_baslik, _sorunlar, _cozum = kontrol()
 if _sorunlar:
     st.set_page_config(page_title="DocVoice", page_icon="🎙️")
-    st.error("**Dosyalar güncel değil**\n\n" + "\n".join(f"- {s}" for s in _sorunlar))
-    st.info(MESAJ)
+    st.error(f"**{_baslik}**\n\n" + "\n".join(f"- {s}" for s in _sorunlar))
+    if _cozum:
+        st.info(_cozum)
     st.stop()
 
 import config  # noqa: E402
