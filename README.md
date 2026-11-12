@@ -359,3 +359,104 @@ QLIK SENSE (şirket içi, QRS API)
   ettiğin yerleri açıkça belirt.
 ```
 
+## Bat dosyalarının içeriği
+
+Repodaki bat dosyalarını açamıyorsanız içeriklerini buradan kopyalayın. Not Defteri'ne yapıştırıp proje klasörüne
+aşağıdaki adla kaydedin (Kayıt türü: **Tüm dosyalar**, yoksa `.txt` uzantısıyla kaydedilir).
+
+### kurulum.bat
+
+Sunucuda / yeni bilgisayarda **bir kez elle** çalıştırın: proje içine `.venv` oluşturup paketleri kurar.
+
+```bat
+@echo off
+REM DocVoice kurulum: proje klasorune .venv (ayri Python ortami) olusturur ve paketleri oraya kurar.
+REM Bir kez calistirin (requirements.txt degisirse tekrar). pip ayarlari %APPDATA%\pip\pip.ini'den okunur.
+REM Farkli bir Python ile kurmak icin: kurulum.bat "C:\Program Files\Python312\python.exe"
+setlocal
+cd /d "%~dp0"
+set "TABAN=python"
+if not "%~1"=="" set "TABAN=%~1"
+
+if exist ".venv\Scripts\python.exe" goto paketler
+echo Sanal ortam olusturuluyor: %~dp0.venv
+"%TABAN%" -m venv .venv
+if errorlevel 1 goto hata_venv
+
+:paketler
+echo Paketler kuruluyor...
+".venv\Scripts\python.exe" -m pip install --upgrade pip
+".venv\Scripts\python.exe" -m pip install -r requirements.txt
+if errorlevel 1 goto hata_pip
+echo.
+".venv\Scripts\python.exe" dosya_kontrol.py
+echo.
+echo Kurulum tamam. Bat dosyalari artik .venv icindeki Python'u kullanir.
+pause
+exit /b 0
+
+:hata_venv
+echo HATA: sanal ortam olusturulamadi. Python yolu: %TABAN%
+echo Python kurulu degilse kurun veya yolunu verin: kurulum.bat "C:\...\python.exe"
+pause
+exit /b 1
+
+:hata_pip
+echo HATA: paketler kurulamadi. pip.ini ayarini kontrol edin: pip config list
+pause
+exit /b 1
+```
+
+### izleyici_servis.bat
+
+App launcher / Görev Zamanlayıcı / hizmet için bunu tanımlayın (sonunda tuş beklemez).
+
+```bat
+@echo off
+REM DocVoice klasor izleyici - app launcher / Gorev Zamanlayici / hizmet icin (sonunda tus beklemez)
+REM Elle baslatmak icin izleyici_baslat.bat dosyasini kullanin.
+setlocal
+cd /d "%~dp0"
+REM Python secimi: 1) proje icindeki .venv (kurulum.bat olusturur)  2) DOCVOICE_PYTHON ortam degiskeni  3) PATH'teki python
+set "PY="
+if exist "%~dp0.venv\Scripts\python.exe" set "PY=%~dp0.venv\Scripts\python.exe"
+if not defined PY if defined DOCVOICE_PYTHON set "PY=%DOCVOICE_PYTHON%"
+if not defined PY set "PY=python"
+echo Python: %PY%
+"%PY%" "%~dp0izleyici.py" %*
+exit /b %ERRORLEVEL%
+```
+
+### izleyici_baslat.bat
+
+İzleyiciyi elle, çift tıklayarak başlatmak için.
+
+```bat
+@echo off
+REM DocVoice klasor izleyici - cift tiklayarak baslatin, durdurmak icin pencereyi kapatin veya Ctrl+C
+REM (app launcher / zamanlayici icin izleyici_servis.bat kullanin)
+cd /d "%~dp0"
+title DocVoice izleyici
+call "%~dp0izleyici_servis.bat" %*
+pause
+```
+
+### uygulama_baslat.bat
+
+Arayüzü (Streamlit) çift tıklayarak başlatmak için.
+
+```bat
+@echo off
+REM DocVoice arayuzu (Streamlit) - cift tiklayarak baslatin, kapatmak icin Ctrl+C
+setlocal
+cd /d "%~dp0"
+title DocVoice
+REM Python secimi: 1) proje icindeki .venv (kurulum.bat olusturur)  2) DOCVOICE_PYTHON ortam degiskeni  3) PATH'teki python
+set "PY="
+if exist "%~dp0.venv\Scripts\python.exe" set "PY=%~dp0.venv\Scripts\python.exe"
+if not defined PY if defined DOCVOICE_PYTHON set "PY=%DOCVOICE_PYTHON%"
+if not defined PY set "PY=python"
+echo Python: %PY%
+"%PY%" -m streamlit run "%~dp0app.py"
+pause
+```
