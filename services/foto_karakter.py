@@ -22,6 +22,7 @@ from PIL import Image, ImageDraw, ImageFilter
 import config
 
 FPS = 25
+SEVIYE = 6           # agiz acikligi kademesi (0 kapali ... 5 en acik); kademe arttikca gecis yumusar
 CAP = 360            # oran 1.0'da cerceve capi (piksel)
 HALKA = 7            # beyaz halka kalinligi
 GOLGE = 18           # golge payi
@@ -43,7 +44,7 @@ class Noktalar:
 
 @dataclass
 class Durum:
-    agiz: int            # 0 kapali, 1 yarim, 2 acik
+    agiz: int            # 0 kapali ... SEVIYE-1 en acik
     goz_kapali: bool
     aci: float           # bas egimi (derece)
     dy: float            # dikey salinim (piksel, cikti olceginde)
@@ -260,8 +261,9 @@ def _hazirla(yol: str, cap_px: int):
 
     ipd = math.hypot(n.sag_goz[0] - n.sol_goz[0], n.sag_goz[1] - n.sol_goz[1])
     cx = (n.sol_goz[0] + n.sag_goz[0]) / 2 * 0.5 + n.agiz[0] * 0.5
-    cy = (n.sol_goz[1] + n.sag_goz[1]) / 2 * 0.45 + n.agiz[1] * 0.55 - ipd * 0.12
-    R = ipd * 2.35                         # sac ve boynun ust kismi cerceveye girsin
+    # kadraj: sacin ustu ile omuz / bluz ust kismi cerceveye girsin
+    cy = (n.sol_goz[1] + n.sag_goz[1]) / 4 + n.agiz[1] / 2 + ipd * 0.5
+    R = ipd * 2.85
     # Donme ve salinimda kenar acilmasin diye %12 pay
     pay = R * 1.12
     kutu = (cx - pay, cy - pay, cx + pay, cy + pay)
@@ -285,7 +287,7 @@ def _hazirla(yol: str, cap_px: int):
     gen_s = n.agiz_gen * olcek
     taban = np.asarray(kirp).astype(np.float32)
     haller = {}
-    for ag in (0, 1, 2):
+    for ag in range(SEVIYE):
         agizli = _agiz_ac(taban, m, gen_s, egri, ag)
         for kapali in (False, True):
             arr = _goz_kapat(agizli, gozler, ipd_s) if kapali else agizli
@@ -314,22 +316,27 @@ def _yumusak(t):
 def _agiz_ac(arr: np.ndarray, merkez, gen: float, egri, seviye: int) -> np.ndarray:
     if seviye == 0:
         return arr.copy()
-    acik = (0.0, 0.13, 0.24)[seviye] * gen          # en genis yerde agiz acikligi
+    oran_ = seviye / (SEVIYE - 1)
+    acik = 0.21 * gen * oran_                      # en genis yerde agiz acikligi
     h, w = arr.shape[:2]
     mx, my = merkez
     yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
     u = (xx - mx) / (gen * 0.5)
     cizgi = my + egri[0] * (xx - mx) ** 2 + egri[1] * (xx - mx)       # dudak ayrim cizgisi
-    # agiz boslugunun yatay profili (mercek bicimi) ve cenenin hareketi (daha genis, yumusak)
+    # agiz boslugunun yatay profili (mercek bicimi); hareket agiz koselerinin biraz disinda biter,
+    # yanaklar ve yuz kenari yerinde kalir (kayma olmasin)
     profil = np.sqrt(np.clip(1 - u ** 2, 0, 1))
-    cene = 1 - _yumusak((np.abs(u) - 0.55) / 1.25)
-    asagi = acik * np.maximum(profil, cene * 0.92)
-    # dikey etki: cenenin altinda (dudaktan ~1.7 agiz genisligi) sifira iner
-    alt_bas, alt_son = cizgi + gen * 1.05, cizgi + gen * 1.95
-    zayif = 1 - _yumusak((yy - alt_bas) / (alt_son - alt_bas))
+    yatay = 1 - _yumusak((np.abs(u) - 0.75) / 0.55)
+    asagi = acik * np.maximum(profil, yatay * 0.55)
+    # dikey: alt dudak tam kayar, cene ~%30 kayar, boyun hic kaymaz
+    dudak_alt = cizgi + gen * 0.32
+    cene = cizgi + gen * 0.95
+    t1 = _yumusak((yy - dudak_alt) / (cene - dudak_alt))           # 0 dudakta, 1 cenede
+    t2 = _yumusak((yy - cene) / (gen * 0.6))                         # 1 cenenin altinda
+    zayif = (1 - t1 * 0.7) * (1 - t2)
     kayma = asagi * zayif
-    yukari = acik * 0.18 * profil                                     # ust dudak hafif kalkar
-    ust_zayif = 1 - _yumusak((cizgi - yy) / (gen * 0.55))
+    yukari = acik * 0.07 * profil                                     # ust dudak cok az kalkar
+    ust_zayif = 1 - _yumusak((cizgi - yy) / (gen * 0.3))
 
     alt_bolge = yy >= cizgi
     kaynak_y = np.where(alt_bolge, yy - kayma, yy + yukari * ust_zayif)
@@ -346,12 +353,12 @@ def _agiz_ac(arr: np.ndarray, merkez, gen: float, egri, seviye: int) -> np.ndarr
     renk = ust_renk * (1 - derinlik[..., None]) + alt_renk * derinlik[..., None]
     renk = renk * (0.62 + 0.38 * _yumusak(profil / 0.8))[..., None]
     # dil: acik agizda altta hafif pembe
-    if seviye == 2:
+    if oran_ > 0.6:
         dil = _yumusak((derinlik - 0.62) / 0.3) * _yumusak((profil - 0.35) / 0.4)
         renk = renk * (1 - dil[..., None] * 0.55) + np.array([150, 70, 76], np.float32) * dil[..., None] * 0.55
     # ust disler: ust dudagin hemen altinda, mercek bicimini izleyen yumusak kenarli serit
     bosluk = np.maximum(ic_alt - ic_ust, 1e-3)
-    dis_boy = 0.30 if seviye == 2 else 0.42
+    dis_boy = 0.42 - 0.12 * oran_
     dis = (1 - _yumusak((derinlik - dis_boy) / 0.14)) * _yumusak((profil - 0.42) / 0.3)
     dis = dis * _yumusak((yy - ic_ust) / np.maximum(bosluk * 0.08, 0.6))
     golgeli = np.array([228, 222, 214], np.float32) * (0.78 + 0.22 * profil)[..., None]
@@ -459,13 +466,17 @@ def kare_ekran(d: Durum) -> Image.Image:
 
 def animasyon(halleri: list[str], siddet: list[float], sahne_baslari: list[float],
               cumle_baslari: list[float]):
-    """Her kare icin Durum: agiz ses siddetine gore, goz kirpma, konusurken hafif bas sallama."""
-    enerji = 0.0
+    """Her kare icin Durum. Agiz acikligi ses siddetinden surekli hesaplanir, yumusatilir ve SEVIYE
+    kademeye bolunur (kapali/yarim/acik arasinda sicrama olmaz). Goz kirpma halleri'nden ('kirpik')."""
+    enerji, acik = 0.0, 0.0
     cumleler = sorted(cumle_baslari)
     for i, ad in enumerate(halleri):
         t = i / FPS
         s = siddet[i] if i < len(siddet) else 0.0
         enerji = enerji * 0.9 + s * 0.1
+        hedef = 0.0 if s < 0.08 else min(1.0, (s - 0.08) / 0.75)
+        acik += (hedef - acik) * (0.65 if hedef > acik else 0.45)     # hizli acilir, biraz yavas kapanir
+        kademe = int(round(acik * (SEVIYE - 1)))
         # cumle basinda kucuk bir bas onaylama
         vurgu = 0.0
         for cb in cumleler:
@@ -474,18 +485,15 @@ def animasyon(halleri: list[str], siddet: list[float], sahne_baslari: list[float
                 break
             if cb > t:
                 break
-        aci = 1.1 * math.sin(2 * math.pi * t / 5.3) + 0.9 * enerji * math.sin(2 * math.pi * 0.9 * t)
-        dy = 1.2 * math.sin(2 * math.pi * t / 3.4) + 2.2 * vurgu * oran()
-        yield Durum(
-            agiz={"kapali": 0, "kirpik": 0, "yarim": 1, "acik": 2}.get(ad, 0),
-            goz_kapali=ad == "kirpik",
-            aci=round(aci, 2), dy=round(dy, 1),
-        )
+        aci = 0.9 * math.sin(2 * math.pi * t / 5.3) + 0.7 * enerji * math.sin(2 * math.pi * 0.9 * t)
+        dy = 1.0 * math.sin(2 * math.pi * t / 3.4) + 2.0 * vurgu * oran()
+        yield Durum(agiz=kademe, goz_kapali=ad == "kirpik", aci=round(aci, 2), dy=round(dy, 1))
 
 
 def onizleme() -> Image.Image:
     """Arayuz icin: kapali, yarim, acik agiz ve goz kirpma halleri yan yana."""
-    kareler = [kare_ekran(Durum(a, g, 0, 0)) for a, g in ((0, False), (1, False), (2, False), (0, True))]
+    kareler = [kare_ekran(Durum(a, g, 0, 0))
+               for a, g in ((0, False), (SEVIYE // 2, False), (SEVIYE - 1, False), (0, True))]
     w, h = kareler[0].size
     tuval = Image.new("RGBA", (w * 4, h), (255, 255, 255, 0))
     for i, k in enumerate(kareler):
