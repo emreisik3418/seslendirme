@@ -104,7 +104,7 @@ def seslendir(icerik: str) -> tuple[bytes, str]:
     proxy = _proxy_bilgisi(config.TTS_URL) if config.TTS_SISTEM_PROXY else ""
     ipucu = (" Bruno'da çalışıp burada çalışmıyorsa .env'de TTS_SISTEM_PROXY=false deneyin "
              f"(istek şu an {proxy} proxy'si üzerinden gidiyor)." if proxy else "")
-    zaman = httpx.Timeout(config.TTS_TIMEOUT, connect=min(30.0, config.TTS_TIMEOUT))
+    zaman = httpx.Timeout(config.TTS_TIMEOUT)     # onceki surumle ayni: baglanti dahil her asamada TTS_TIMEOUT
 
     son_hata = ""
     for deneme in range(1, config.TTS_RETRY + 2):   # ilk istek + TTS_RETRY tekrar
@@ -117,8 +117,10 @@ def seslendir(icerik: str) -> tuple[bytes, str]:
                               trust_env=config.TTS_SISTEM_PROXY) as istemci:
                 yanit = istemci.post(config.TTS_URL, content=ssml.encode("utf-8"), headers=headerlar)
         except httpx.ConnectTimeout:
-            son_hata = (f"Seslendirme servisine {time.monotonic() - bas:.0f} sn içinde bağlanılamadı "
-                        f"(ağ / proxy / güvenlik duvarı).{ipucu}")
+            sn = time.monotonic() - bas
+            son_hata = (f"Seslendirme servisine {sn:.0f} sn içinde bağlanılamadı (ağ / proxy / güvenlik duvarı"
+                        + ("; ~21 sn Windows'un kendi bağlantı denemesi süresidir, sunucu adrese hiç ulaşamıyor"
+                           if 15 < sn < 25 else "") + f").{ipucu}")
         except httpx.ConnectError as e:
             son_hata = f"Seslendirme servisine bağlanılamadı (ağ/SSL): {e}{ipucu}"
         except httpx.TimeoutException:
