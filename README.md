@@ -187,7 +187,12 @@ Oluşan video, Qlik Sense (şirket içi) content library'sine QRS API ile yükle
    `YoneticiOzeti.mp4`, `YoneticiOzeti.pdf`, `YoneticiOzeti.mp3`. Ses videodan çıkarılır (`QLIK_SES_FORMATI=mp3`).
    Slayt modunda (Word'den) üretilen videoda PDF olmadığı için yalnız video ve ses gider.
 4. Yan paneldeki **Qlik bağlantısını test et** ile kontrol edin; video oluşunca **Qlik'e gönder**.
-5. İzleyicide otomatik yükleme: `IZLE_QLIK=true`. Yükleme başarısız olursa video hedef klasörde kalır, yanına
+5. İzleyicide otomatik yükleme: `IZLE_QLIK=true`.
+6. **İki PDF (biri videoya, biri doğrudan Qlik'e):** `IZLE_QLIK_PDF=Detay` gibi bir ad kalıbı verin. Adında bu
+   geçen PDF (tarih öneki yok sayılır) videoya çevrilmez, olduğu gibi Qlik'e yüklenir; diğer PDF videoya çevrilir.
+   Bu durumda videonun kendi PDF'i gönderilmez, content'te `QLIK_DOSYA_ADI.mp4 / .mp3` ve doğrudan yüklenen
+   PDF `QLIK_DOSYA_ADI.pdf` adıyla durur (farklı ad için `QLIK_PDF_DOSYA_ADI`). PDF yüklenemezse `islenen/`
+   klasöründe yanına `.qlik_bekliyor` işareti bırakılır ve video gibi 5 dakikada bir yeniden denenir. Yükleme başarısız olursa video hedef klasörde kalır, yanına
    `.qlik_bekliyor` dosyası yazılır ve izleyici 5 dakikada bir (en fazla 12 kez) yeniden dener.
 
 ## Sorun giderme

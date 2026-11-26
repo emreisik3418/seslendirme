@@ -318,6 +318,20 @@ def dosyalari_yukle(video: Path, altyazi: Path | None = None, pdf: Path | bytes 
     return sonuc
 
 
+def dogrudan_pdf_adi(kaynak: str | Path) -> str:
+    """Videoya cevrilmeden yuklenen PDF'in Qlik'teki adi:
+    QLIK_PDF_DOSYA_ADI > QLIK_DOSYA_ADI (video ile ayni ad: APKO_Yonetici_Ozeti.pdf) > PDF'in tarihsiz adi."""
+    if config.QLIK_PDF_DOSYA_ADI:
+        return temiz_ad(config.QLIK_PDF_DOSYA_ADI, ".pdf") or "docvoice.pdf"
+    return Path(yukleme_adi(kaynak)).with_suffix(".pdf").name
+
+
+def pdf_yukle(pdf: Path, kaynak_adi: str | None = None) -> YuklemeSonucu:
+    """PDF'i oldugu gibi (videosuz) content library'ye yukler; ayni adli eski dosyanin uzerine yazilir."""
+    pdf = Path(pdf)
+    return yukle(pdf, ad=dogrudan_pdf_adi(kaynak_adi or pdf.name))
+
+
 def video_yukle(video: Path, altyazi: Path | None = None, kaynak_adi: str | None = None,
                 ad: str | None = None) -> YuklemeSonucu:
     """Geriye uyumluluk: sadece video (+ QLIK_SRT acikken altyazi). Doner: videonun sonucu."""

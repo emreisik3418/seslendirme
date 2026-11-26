@@ -23,6 +23,7 @@ PDF adinin basinda tarih varsa (NPrinting: 20261028_APK_Rapor.pdf) tarihsiz ad d
 APK_Rapor.docx sabit sablon sayilir ve klasorde kalir; 20261028_APK_Rapor.docx PDF ile birlikte tasinir.
 """
 import argparse
+import fnmatch
 import hashlib
 import json
 import logging
@@ -80,6 +81,9 @@ def _ayarlari_dogrula() -> list[str]:
         hatalar.append("TTS_URL tanımlı değil (.env)")
     if config.IZLE_QLIK and not qlik_yukleyici.tanimli_mi():
         hatalar.append("IZLE_QLIK açık ama QLIK_URL tanımlı değil (.env)")
+    if config.IZLE_QLIK_PDF and not config.IZLE_QLIK:
+        hatalar.append("IZLE_QLIK_PDF tanımlı ama IZLE_QLIK=false: doğrudan Qlik'e gidecek PDF'ler için "
+                       "IZLE_QLIK=true yapın")
     if not _kurallar_dosyasi().exists():
         hatalar.append(f"Kural seti dosyası bulunamadı: {_kurallar_dosyasi()}")
     return hatalar + [u for u in config.UYARILAR if "IZLE" in u]
@@ -276,6 +280,51 @@ def _isaret_oku(isaret: Path) -> tuple[int, Path | None]:
     return sayi, pdf
 
 
+def _isaret_yaz(isaret: Path, pdf: Path | None, hata: Exception) -> int:
+    sayi = _isaret_oku(isaret)[0] + 1 if isaret.exists() else 1
+    isaret.write_text(f"{sayi}\n{datetime.now():%Y-%m-%d %H:%M:%S}\npdf={pdf or ''}\n{hata}\n",
+                      encoding="utf-8")
+    return sayi
+
+
+def dogrudan_qlik_mi(pdf: Path) -> bool:
+    """PDF videoya cevrilmeden dogrudan Qlik'e mi gidecek? (IZLE_QLIK_PDF kaliplari, tarih oneki yok sayilir)"""
+    if not config.IZLE_QLIK_PDF:
+        return False
+    adlar = {pdf.name.casefold(), pdf.stem.casefold()}
+    tarihsiz = tarihsiz_ad(pdf.stem)
+    adlar |= {tarihsiz.casefold(), (tarihsiz + pdf.suffix).casefold()}
+    for kalip in config.IZLE_QLIK_PDF:
+        k = kalip.casefold()
+        if any(c in k for c in "*?["):
+            if any(fnmatch.fnmatchcase(a, k) for a in adlar):
+                return True
+        elif any(k in a for a in adlar):
+            return True
+    return False
+
+
+def pdf_qlik_yukle(pdf: Path) -> bool:
+    """Videosuz PDF'i Qlik'e yukler. Basarisizsa PDF'in yanina (islenen/) isaret birakir, sonra tekrar denenir."""
+    isaret = pdf.with_name(pdf.name + BEKLIYOR)
+    try:
+        sonuc = qlik_yukleyici.pdf_yukle(pdf, kaynak_adi=pdf.name)
+    except Exception as e:
+        sayi = _isaret_yaz(isaret, pdf, e)
+        log.error(f"  PDF Qlik'e yüklenemedi ({sayi}. deneme), sonra tekrar denenecek: {e}")
+        return False
+    isaret.unlink(missing_ok=True)
+    log.info(f"  PDF Qlik'e yüklendi: {sonuc.adres}")
+    return True
+
+
+def _video_turleri() -> list[str] | None:
+    """Videoyla birlikte gidecek dosyalar. Dogrudan yuklenen bir PDF varsa videonun kendi PDF'i gitmez."""
+    if config.IZLE_QLIK_PDF:
+        return [t for t in config.QLIK_YUKLENECEKLER if t != "pdf"]
+    return None
+
+
 def qlik_yukle(video: Path, pdf: Path | None = None) -> bool:
     """Videoyu (ve QLIK_YUKLENECEKLER'e gore PDF / ses / altyazi dosyalarini) Qlik'e yukler.
     Basarisizsa videonun yanina isaret dosyasi birakir (sonra tekrar denenir)."""
@@ -283,11 +332,9 @@ def qlik_yukle(video: Path, pdf: Path | None = None) -> bool:
     try:
         # Qlik'te hep ayni ad (tarih oneki atilmis PDF adi veya QLIK_DOSYA_ADI): eski dosyalar uzerine yazilir
         sonuc = qlik_yukleyici.dosyalari_yukle(video, video.with_suffix(".srt"), pdf=pdf,
-                                              kaynak_adi=video.name)
+                                              kaynak_adi=video.name, turler=_video_turleri())
     except Exception as e:   # QlikHatasi veya ses cikarma / dosya hatasi: sonra tekrar denenir
-        sayi = _isaret_oku(isaret)[0] + 1 if isaret.exists() else 1
-        isaret.write_text(f"{sayi}\n{datetime.now():%Y-%m-%d %H:%M:%S}\npdf={pdf or ''}\n{e}\n",
-                          encoding="utf-8")
+        sayi = _isaret_yaz(isaret, pdf, e)
         log.error(f"  Qlik'e yüklenemedi ({sayi}. deneme), sonra tekrar denenecek: {e}")
         return False
     isaret.unlink(missing_ok=True)
@@ -300,8 +347,23 @@ def qlik_yukle(video: Path, pdf: Path | None = None) -> bool:
 
 def bekleyen_yuklemeler():
     """Daha once basarisiz olan Qlik yuklemelerini belirli araliklarla yeniden dener."""
+    if not config.IZLE_QLIK:
+        return
+    # videosuz yuklenen PDF'ler: isaret islenen/ klasorunde PDF'in yaninda
+    islenen = config.IZLE_KLASORU / ISLENEN if config.IZLE_KLASORU else None
+    if islenen and islenen.is_dir():
+        for isaret in sorted(islenen.glob(f"*.pdf{BEKLIYOR}")):
+            pdf = isaret.with_name(isaret.name[: -len(BEKLIYOR)])
+            if not pdf.exists():
+                isaret.unlink(missing_ok=True)
+                continue
+            sayi, _ = _isaret_oku(isaret)
+            if sayi >= QLIK_AZAMI_DENEME or time.time() - isaret.stat().st_mtime < QLIK_TEKRAR_ARALIK:
+                continue
+            log.info(f"PDF Qlik yüklemesi yeniden deneniyor: {pdf.name}")
+            pdf_qlik_yukle(pdf)
     hedef = config.IZLE_HEDEF_KLASORU
-    if not (config.IZLE_QLIK and hedef and hedef.is_dir()):
+    if not (hedef and hedef.is_dir()):
         return
     for isaret in sorted(hedef.glob(f"*{BEKLIYOR}")):
         video = isaret.with_name(isaret.name[: -len(BEKLIYOR)])
@@ -319,6 +381,16 @@ def bir_tur(klasor: Path, takip: KopyalamaTakibi) -> int:
     islenen = 0
     for pdf in _yeni_pdfler(klasor):
         if not takip.hazir_mi(pdf):
+            continue
+        if dogrudan_qlik_mi(pdf):
+            # videoya cevrilmez: oldugu gibi Qlik'e yuklenir (QLIK_PDF_DOSYA_ADI / QLIK_DOSYA_ADI adiyla)
+            log.info(f"Yeni PDF (doğrudan Qlik'e): {pdf.name} -> {qlik_yukleyici.dogrudan_pdf_adi(pdf.name)}")
+            try:
+                islenen_pdf = _tasi(pdf, klasor / ISLENEN)
+                pdf_qlik_yukle(islenen_pdf)
+                islenen += 1
+            except Exception as e:
+                log.error(f"  HATA: {e}")
             continue
         word, sabit = _esli_word(pdf)
         log.info(f"Yeni PDF: {pdf.name}" + (f" + {word.name}" + (" (sabit şablon)" if sabit else "")
@@ -387,6 +459,11 @@ def main():
              f"Karakter: {config.VIDEO_KARAKTER_TIPI if config.VIDEO_KARAKTER else 'kapalı'}")
     if config.IZLE_QLIK:
         log.info(f"  Qlik           : {config.QLIK_URL} · kütüphane {config.QLIK_KUTUPHANE}")
+        turler = _video_turleri() or config.QLIK_YUKLENECEKLER
+        log.info(f"  Videoyla giden : {', '.join(turler)}")
+    if config.IZLE_QLIK_PDF:
+        log.info(f"  Doğrudan Qlik'e: adında {' / '.join(config.IZLE_QLIK_PDF)} geçen PDF'ler "
+                 f"-> {qlik_yukleyici.dogrudan_pdf_adi('ornek.pdf')}")
     _yarim_kalanlari_geri_al(klasor)
 
     takip = KopyalamaTakibi()

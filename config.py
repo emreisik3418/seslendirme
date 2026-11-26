@@ -204,6 +204,14 @@ try:
 except ValueError:
     QLIK_TIMEOUT = 600.0
 IZLE_QLIK = _bool("IZLE_QLIK", False)   # izleyici videoyu olusturduktan sonra Qlik'e yuklesin
+# Izleme klasorunde videoya cevrilmeden DOGRUDAN Qlik'e yuklenecek PDF'ler: dosya adi kalibi (virgulle
+# birden fazla). Tarih oneki yok sayilir, buyuk/kucuk harf fark etmez. Joker yoksa "adinda geciyor" demektir:
+#   IZLE_QLIK_PDF=Detay          -> 20261126_APKO_Detay.pdf dogrudan yuklenir, digeri videoya cevrilir
+#   IZLE_QLIK_PDF=APKO_Rapor*.pdf
+# Tanimliysa videonun kendi PDF'i Qlik'e gonderilmez; content'teki PDF bu dosya olur.
+IZLE_QLIK_PDF = [k.strip() for k in (os.getenv("IZLE_QLIK_PDF") or "").replace(";", ",").split(",") if k.strip()]
+# Dogrudan yuklenen PDF'in Qlik'teki adi. Bos: QLIK_DOSYA_ADI (video ile ayni ad), o da bossa PDF'in tarihsiz adi
+QLIK_PDF_DOSYA_ADI = (os.getenv("QLIK_PDF_DOSYA_ADI") or "").strip().strip("'\"")
 QLIK_NOTLAR: list[str] = []             # adres cozumlemesi gibi bilgiler (arayuzde gosterilir)
 
 
