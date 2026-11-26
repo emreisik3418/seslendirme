@@ -1,11 +1,38 @@
 """Sirket LLM servisine istek atar (chat/completions formati)."""
+import logging
+import os
+import time
+
 import httpx
 
 import config
 
 
+log = logging.getLogger("docvoice.llm")
+
+
 class LLMHatasi(Exception):
     pass
+
+
+def _proxy_bilgisi() -> str:
+    """LLM_URL icin ortam degiskenlerinden (HTTPS_PROXY vb.) kullanilacak proxy; NO_PROXY ile atlanan
+    adreslerde bos. httpx yalnizca ortam degiskenlerine bakar, Windows'un Internet Ayarlari'ndaki
+    (Bruno'nun da kullanabildigi) sistem proxy'sine bakmaz."""
+    import urllib.request
+    from urllib.parse import urlsplit
+
+    p = urlsplit(config.LLM_URL)
+    if not p.hostname or urllib.request.proxy_bypass_environment(p.hostname):
+        return ""
+    vekiller = urllib.request.getproxies_environment()
+    vekil = vekiller.get(p.scheme) or vekiller.get("all")
+    return vekil or ""
+
+
+def _zaman_asimi() -> httpx.Timeout:
+    # baglanti 30 sn'de kurulmali; yanit icin LLM_TIMEOUT kadar beklenir
+    return httpx.Timeout(config.LLM_TIMEOUT, connect=min(30.0, config.LLM_TIMEOUT))
 
 
 def _headerlar() -> dict:
@@ -50,21 +77,38 @@ def formatla(kurallar: str, metin: str) -> tuple[str, dict]:
         ]
     }
 
+    proxy = _proxy_bilgisi() if config.LLM_SISTEM_PROXY else ""
+    yol = f" (proxy üzerinden: {proxy})" if proxy else ""
+    log.info(f"LLM isteği gönderildi: {len(metin)} karakter{yol}")
+    bas = time.monotonic()
+
+    def sure() -> str:
+        return f"{time.monotonic() - bas:.0f} sn"
+
+    ipucu = (" Bruno'da çalışıp burada çalışmıyorsa: .env'de LLM_SISTEM_PROXY=false deneyin "
+             "(istek şu an sistem proxy'si üzerinden gidiyor)." if proxy else
+             " Birden çok sayfa aynı anda gönderiliyorsa LLM_PARALEL=1 ile deneyin.")
     try:
-        yanit = httpx.post(
-            config.LLM_URL,
-            json=govde,
-            headers=_headerlar(),
-            timeout=config.LLM_TIMEOUT,
-            verify=config.ssl_dogrulama(),
-        )
+        with httpx.Client(timeout=_zaman_asimi(), verify=config.ssl_dogrulama(),
+                          trust_env=config.LLM_SISTEM_PROXY) as istemci:
+            yanit = istemci.post(config.LLM_URL, json=govde, headers=_headerlar())
+    except httpx.ConnectTimeout as e:
+        raise LLMHatasi(f"Servise {sure()} içinde bağlanılamadı (ağ / proxy / güvenlik duvarı).{ipucu}") from e
     except httpx.ConnectError as e:
-        raise LLMHatasi(f"Servise baglanilamadi (ag/SSL): {e}") from e
+        raise LLMHatasi(f"Servise bağlanılamadı (ağ/SSL): {e}{ipucu}") from e
     except httpx.TimeoutException as e:
-        raise LLMHatasi(f"Servis {config.LLM_TIMEOUT} sn icinde yanit vermedi.") from e
+        raise LLMHatasi(f"Servis {config.LLM_TIMEOUT:.0f} sn içinde yanıt vermedi ({sure()}).{ipucu}") from e
+    except httpx.TransportError as e:   # RemoteProtocolError, ReadError: baglanti karsi taraftan kapatildi
+        raise LLMHatasi(f"Bağlantı {sure()} sonra yanıt gelmeden kapandı ({type(e).__name__}: {e}). "
+                        f"Aradaki proxy / gateway'in kendi zaman aşımı olabilir.{ipucu}") from e
+    log.info(f"LLM yanıtı: HTTP {yanit.status_code}, {sure()}")
 
     if yanit.status_code != 200:
-        raise LLMHatasi(f"HTTP {yanit.status_code}: {yanit.text[:1000]}")
+        ek = ""
+        if yanit.status_code in (502, 503, 504):
+            ek = (f" ({sure()} sonra; aradaki proxy / gateway zaman aşımına uğramış veya servis "
+                  f"meşgul olabilir.{ipucu})")
+        raise LLMHatasi(f"HTTP {yanit.status_code}{ek}: {yanit.text[:1000]}")
 
     try:
         veri = yanit.json()

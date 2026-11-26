@@ -39,6 +39,9 @@ LLM_APP_NAME = os.getenv("LLM_APP_NAME", "")      # x-application-name header'i
 LLM_TOKEN = os.getenv("LLM_TOKEN", "")            # Auth gerekiyorsa (Bearer)
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "400"))  # saniye; servis uzun surebiliyor
 LLM_PARALEL = int(os.getenv("LLM_PARALEL", "3"))     # PDF modunda ayni anda gonderilen sayfa sayisi
+# Ortam degiskenlerindeki proxy (HTTPS_PROXY vb.) kullanilsin mi. Bruno'da calisip burada zaman asimi / baglanti
+# kopmasi varsa false deneyin: istek proxy'ye ugramadan dogrudan servise gider.
+LLM_SISTEM_PROXY = _bool("LLM_SISTEM_PROXY", True)
 
 # --- TTS servisi (Azure uyumlu, SSML alir) ---
 TTS_URL = os.getenv("TTS_URL", "")
