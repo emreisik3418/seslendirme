@@ -8,3 +8,5 @@ logs/
 karakter_foto/
 *.jpg
 *.jpeg
+tts_test.*
+!tts_test.py

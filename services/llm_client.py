@@ -15,14 +15,14 @@ class LLMHatasi(Exception):
     pass
 
 
-def _proxy_bilgisi() -> str:
-    """LLM_URL icin ortam degiskenlerinden (HTTPS_PROXY vb.) kullanilacak proxy; NO_PROXY ile atlanan
+def _proxy_bilgisi(url: str | None = None) -> str:
+    """Adres (varsayilan LLM_URL) icin ortam degiskenlerinden (HTTPS_PROXY vb.) kullanilacak proxy; NO_PROXY ile atlanan
     adreslerde bos. httpx yalnizca ortam degiskenlerine bakar, Windows'un Internet Ayarlari'ndaki
     (Bruno'nun da kullanabildigi) sistem proxy'sine bakmaz."""
     import urllib.request
     from urllib.parse import urlsplit
 
-    p = urlsplit(config.LLM_URL)
+    p = urlsplit(url or config.LLM_URL)
     if not p.hostname or urllib.request.proxy_bypass_environment(p.hostname):
         return ""
     vekiller = urllib.request.getproxies_environment()
