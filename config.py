@@ -54,6 +54,9 @@ TTS_TIMEOUT = float(os.getenv("TTS_TIMEOUT", "300"))
 TTS_RETRY = int(os.getenv("TTS_RETRY", "4"))          # 503/429 gibi gecici hatalarda tekrar sayisi
 TTS_BEKLEME = float(os.getenv("TTS_BEKLEME", "0.3"))  # istekler arasi bekleme (sn)
 TTS_SISTEM_PROXY = _bool("TTS_SISTEM_PROXY", True)      # ortam degiskenlerindeki proxy kullanilsin mi
+# TTS proxy'si: bos = ortam degiskenleri (HTTPS_PROXY), "windows" = Windows Internet Ayarlari'ndaki proxy
+# (Bruno / tarayicinin kullandigi), "yok" = dogrudan, veya adres: http://proxy.sirket:8080
+TTS_PROXY = (os.getenv("TTS_PROXY") or "").strip().strip("'\"")
 
 # --- Video ---
 UYARILAR: list[str] = []   # arayuzde yan panelde gosterilir

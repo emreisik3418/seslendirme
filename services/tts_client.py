@@ -79,6 +79,47 @@ def _bekleme_suresi(yanit, deneme: int) -> float:
     return min(2 ** deneme, 30)   # 2, 4, 8, 16, 30 sn
 
 
+def windows_proxy(url: str) -> str:
+    """Windows Internet Ayarlari'ndaki elle girilmis proxy (Bruno, tarayici bunu kullanir). PAC desteklenmez."""
+    import urllib.request
+    from urllib.parse import urlsplit
+
+    if not hasattr(urllib.request, "getproxies_registry"):
+        return ""
+    host = urlsplit(url).hostname or ""
+    try:
+        if host and urllib.request.proxy_bypass_registry(host):
+            return ""
+        vekiller = urllib.request.getproxies_registry()
+    except OSError:
+        return ""
+    return vekiller.get(urlsplit(url).scheme) or vekiller.get("https") or vekiller.get("http") or ""
+
+
+def proxy_secimi() -> tuple[str, bool]:
+    """Doner: (kullanilacak proxy adresi veya "", ortam degiskenlerine bakilsin mi)."""
+    from services.llm_client import _proxy_bilgisi
+
+    ayar = config.TTS_PROXY.lower()
+    if ayar in ("yok", "none", "false", "hayir"):
+        return "", False
+    if ayar in ("windows", "sistem", "system"):
+        return windows_proxy(config.TTS_URL), False
+    if ayar:
+        return config.TTS_PROXY, False
+    return (_proxy_bilgisi(config.TTS_URL), True) if config.TTS_SISTEM_PROXY else ("", False)
+
+
+def _istemci(zaman, proxy: str, ortam: bool) -> httpx.Client:
+    ayar = dict(timeout=zaman, verify=config.ssl_dogrulama(), trust_env=ortam)
+    if proxy and not ortam:
+        try:
+            return httpx.Client(proxy=proxy, **ayar)
+        except TypeError:                      # eski httpx surumleri
+            return httpx.Client(proxies=proxy, **ayar)
+    return httpx.Client(**ayar)
+
+
 def seslendir(icerik: str) -> tuple[bytes, str]:
     """Doner: (ses_baytlari, gonderilen_ssml)"""
     if not config.TTS_URL:
@@ -100,10 +141,16 @@ def seslendir(icerik: str) -> tuple[bytes, str]:
     if config.TTS_KEY:
         headerlar["Ocp-Apim-Subscription-Key"] = config.TTS_KEY
 
-    from services.llm_client import _proxy_bilgisi
-    proxy = _proxy_bilgisi(config.TTS_URL) if config.TTS_SISTEM_PROXY else ""
-    ipucu = (" Bruno'da çalışıp burada çalışmıyorsa .env'de TTS_SISTEM_PROXY=false deneyin "
-             f"(istek şu an {proxy} proxy'si üzerinden gidiyor)." if proxy else "")
+    proxy, ortam = proxy_secimi()
+    if proxy:
+        ipucu = (f" İstek {proxy} proxy'si üzerinden gidiyor; Bruno'da çalışıp burada çalışmıyorsa "
+                 ".env'de TTS_PROXY=yok veya TTS_PROXY=windows deneyin.")
+    elif config.TTS_PROXY.lower() in ("windows", "sistem", "system"):
+        ipucu = (" TTS_PROXY=windows ama Windows'ta elle tanımlı proxy bulunamadı (otomatik yapılandırma / PAC "
+                 "kullanılıyor olabilir): ağ ekibinden proxy adresini alıp TTS_PROXY=http://adres:port yazın.")
+    else:
+        ipucu = (" İstek proxy'siz, doğrudan gidiyor. Bruno'da çalışıyorsa Bruno büyük ihtimalle Windows'un "
+                 "proxy ayarını kullanıyor: .env'de TTS_PROXY=windows deneyin (ayrıntı için tts_test.py).")
     zaman = httpx.Timeout(config.TTS_TIMEOUT)     # onceki surumle ayni: baglanti dahil her asamada TTS_TIMEOUT
 
     son_hata = ""
@@ -113,8 +160,7 @@ def seslendir(icerik: str) -> tuple[bytes, str]:
         log.info(f"TTS isteği: {len(ssml)} karakter SSML" + (f" (proxy: {proxy})" if proxy else "")
                  + (f", {deneme}. deneme" if deneme > 1 else ""))
         try:
-            with httpx.Client(timeout=zaman, verify=config.ssl_dogrulama(),
-                              trust_env=config.TTS_SISTEM_PROXY) as istemci:
+            with _istemci(zaman, proxy, ortam) as istemci:
                 yanit = istemci.post(config.TTS_URL, content=ssml.encode("utf-8"), headers=headerlar)
         except httpx.ConnectTimeout:
             sn = time.monotonic() - bas
