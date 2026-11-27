@@ -99,7 +99,7 @@ def ag_tanilama():
 
 
 print(f"Python      : {sys.executable}")
-print(f"TTS_URL     : {config.TTS_URL}")
+print(f"TTS_URL     : [{config.TTS_URL}]   (köşeli parantez içi birebir; Bruno'daki adresle karşılaştırın)")
 print(f"Ses / format: {config.TTS_VOICE} · {config.TTS_OUTPUT_FORMAT}")
 print(f"TTS_TIMEOUT : {config.TTS_TIMEOUT:.0f} sn")
 print(f"İçerik      : {len(icerik)} karakter\n")

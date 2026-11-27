@@ -107,6 +107,12 @@ def yanit_ozeti(yanit: httpx.Response) -> str:
         parcalar.append(f"başlık: {baslik_metni}")
     if govde:
         parcalar.append(f"metin: {govde[:300]}")
+    if "application is not available" in metin.lower():
+        parcalar.append(
+            "AÇIKLAMA: bu, servisin çalıştığı OpenShift'in yönlendiricisinden geliyor; isteğin gittiği adrese "
+            "(sunucu adı + yol) karşılık gelen bir uygulama bulamadı. Bruno çalışıyorsa adres Bruno'dakiyle "
+            "birebir aynı değildir: http/https, sunucu adı, yol, sondaki / ve sorgu parametrelerini karşılaştırın. "
+            f"Kullanılan adres: {yanit.request.url}")
     return " · ".join(parcalar) + kayit
 
 
