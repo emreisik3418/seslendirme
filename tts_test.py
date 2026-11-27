@@ -6,6 +6,7 @@ Kullanim (proje klasorunde):
     .venv\\Scripts\\python tts_test.py --proxysiz     -> ortam proxy'sini kullanmadan dene
     .venv\\Scripts\\python tts_test.py --windows      -> Windows Internet Ayarlari'ndaki proxy ile dene
     .venv\\Scripts\\python tts_test.py --tek          -> ilk deneme basarisiz olsa da baska yol deneme
+    .venv\\Scripts\\python tts_test.py --pac http://.../proxy.pac  -> PAC adresini elle ver
 Ilk deneme basarisiz olursa proxy'siz, Windows proxy'si ve farkli User-Agent ile kendiliginden dener.
 Basariliysa sesi tts_test.mp3 (veya .wav) olarak kaydeder. Onbellek kullanilmaz.
 """
@@ -22,7 +23,8 @@ from services.llm_client import _proxy_bilgisi
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
-argumanlar = [a for a in sys.argv[1:] if not a.startswith("--")]
+argumanlar = [a for i, a in enumerate(sys.argv[1:], 1)
+              if not a.startswith("--") and sys.argv[i - 1] != "--pac"]
 if "--proxysiz" in sys.argv:
     config.TTS_PROXY = "yok"
 if "--windows" in sys.argv:
@@ -51,6 +53,51 @@ icerik = _oku(argumanlar[0]) if argumanlar else \
     '<prosody rate="0%">Merhaba, bu bir seslendirme denemesidir.</prosody>'
 
 
+def pac_adresi() -> str:
+    """Windows'un otomatik proxy betigi (PAC) adresi; --pac <adres> ile elle de verilebilir."""
+    if "--pac" in sys.argv:
+        i = sys.argv.index("--pac")
+        if i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                            r"Software\Microsoft\Windows\CurrentVersion\Internet Settings") as k:
+            return winreg.QueryValueEx(k, "AutoConfigURL")[0]
+    except (ImportError, OSError):
+        return ""
+
+
+def pac_proxyleri(pac: str) -> list[str]:
+    """PAC betigini (proxy'siz) indirir, icindeki 'PROXY sunucu:port' adreslerini sirayla dondurur.
+    TTS sunucu adinin gectigi satirlari da yazar (hangi kuralin uygulandigini gormek icin)."""
+    import re
+    import urllib.request
+    from urllib.parse import urlsplit
+
+    try:
+        acici = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        metin = acici.open(pac, timeout=15).read().decode("utf-8", "replace")
+    except Exception as e:
+        print(f"PAC betiği indirilemedi ({pac}): {e}")
+        return []
+    host = (urlsplit(config.TTS_URL).hostname or "").lower()
+    parcalar = host.split(".")
+    alanlar = {".".join(parcalar[i:]) for i in range(1, max(1, len(parcalar) - 1))} | {host}
+    ilgili = [satir.strip() for satir in metin.splitlines()
+              if any(a and a in satir.lower() for a in alanlar)]
+    if ilgili:
+        print("PAC'te TTS adresiyle ilgili satırlar:")
+        for satir in ilgili[:10]:
+            print(f"    {satir[:150]}")
+    sonuc = []
+    for adres in re.findall(r"PROXY\s+([A-Za-z0-9.\-]+:\d+)", metin):
+        if adres not in sonuc:
+            sonuc.append(adres)
+    print(f"PAC'teki proxy'ler: {', '.join(sonuc) or 'bulunamadı'}\n")
+    return sonuc
+
+
 def ag_tanilama():
     """DNS, dogrudan TCP baglantisi ve proxy ayarlarini yazar: Bruno ile farki gormek icin."""
     import socket
@@ -76,14 +123,7 @@ def ag_tanilama():
             print(f"Doğrudan TCP: {ip} -> BAĞLANAMADI ({time.monotonic() - bas:.0f} sn, {e})")
     ortam = _proxy_bilgisi(config.TTS_URL)
     win = tts_client.windows_proxy(config.TTS_URL)
-    pac = ""
-    try:
-        import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-                            r"Software\Microsoft\Windows\CurrentVersion\Internet Settings") as k:
-            pac = winreg.QueryValueEx(k, "AutoConfigURL")[0]
-    except (ImportError, OSError):
-        pass
+    pac = pac_adresi()
     print(f"Ortam proxy : {ortam or 'yok'}   (HTTPS_PROXY vb.; Python bunu kullanır)")
     print(f"Windows prx : {win or 'yok'}   (Internet Ayarları; Bruno / tarayıcı bunu kullanabilir)")
     if pac:
@@ -136,6 +176,11 @@ if ses is None and "--tek" not in sys.argv:
     secenekler = [("proxy'siz, doğrudan", "yok", None, "TTS_PROXY=yok")]
     if tts_client.windows_proxy(config.TTS_URL):
         secenekler.append(("Windows proxy'si (Bruno gibi)", "windows", None, "TTS_PROXY=windows"))
+    pac = pac_adresi()
+    if pac:
+        for adres in pac_proxyleri(pac)[:6]:
+            secenekler.append((f"PAC'teki proxy {adres} (Bruno gibi)", f"http://{adres}", None,
+                               f"TTS_PROXY=http://{adres}"))
     secenekler += [
         ("farklı User-Agent", None, TARAYICI_UA, f"TTS_USER_AGENT={TARAYICI_UA}"),
         ("proxy'siz + farklı User-Agent", "yok", TARAYICI_UA, f"TTS_PROXY=yok ve TTS_USER_AGENT={TARAYICI_UA}"),

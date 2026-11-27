@@ -230,6 +230,8 @@ def seslendir(icerik: str) -> tuple[bytes, str]:
                 401: " Anahtar (TTS_KEY) geçersiz veya eksik.",
                 403: " Bu anahtarın / uygulamanın servise erişim izni yok.",
                 413: " SSML çok uzun; LLM kural setinde daha kısa bölümler (<break>) isteyin.",
+                407: " Proxy kullanıcı doğrulaması istiyor (Windows oturumuyla). Ağ ekibinden bu proxy'de TTS "
+                     "adresi için doğrulamasız geçiş veya uygulama için bir servis hesabı isteyin.",
                 429: " Servis istek sınırına takıldı; TTS_BEKLEME değerini artırın (ör. 2).",
                 502: f" Aradaki gateway hata verdi ({sure:.0f} sn).",
                 503: " Servis meşgul / bakımda.",
