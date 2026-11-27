@@ -57,6 +57,8 @@ TTS_SISTEM_PROXY = _bool("TTS_SISTEM_PROXY", True)      # ortam degiskenlerindek
 # TTS proxy'si: bos = ortam degiskenleri (HTTPS_PROXY), "windows" = Windows Internet Ayarlari'ndaki proxy
 # (Bruno / tarayicinin kullandigi), "yok" = dogrudan, veya adres: http://proxy.sirket:8080
 TTS_PROXY = (os.getenv("TTS_PROXY") or "").strip().strip("'\"")
+# Istegin User-Agent'i. Bos: python-httpx (varsayilan). Gateway python isteklerini engelliyorsa doldurun.
+TTS_USER_AGENT = (os.getenv("TTS_USER_AGENT") or "").strip().strip("'\"")
 
 # --- Video ---
 UYARILAR: list[str] = []   # arayuzde yan panelde gosterilir

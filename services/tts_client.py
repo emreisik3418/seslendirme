@@ -79,6 +79,37 @@ def _bekleme_suresi(yanit, deneme: int) -> float:
     return min(2 ** deneme, 30)   # 2, 4, 8, 16, 30 sn
 
 
+def yanit_ozeti(yanit: httpx.Response) -> str:
+    """Hata yaniti HTML ise (proxy / gateway hata sayfasi) basligini ve gorunen metnini cikarir,
+    sayfanin tamamini output/tts_son_hata.html dosyasina yazar. Degilse ilk 300 karakter."""
+    import re
+
+    metin = yanit.text or ""
+    if "<html" not in metin[:2000].lower() and "<!doctype" not in metin[:200].lower():
+        return metin[:300]
+    try:
+        dosya = config.CIKTI_KLASORU / "tts_son_hata.html"
+        dosya.parent.mkdir(parents=True, exist_ok=True)
+        dosya.write_text(metin, encoding="utf-8")
+        kayit = f" [sayfanın tamamı: {dosya}]"
+    except OSError:
+        kayit = ""
+    baslik = re.search(r"<title[^>]*>(.*?)</title>", metin, re.S | re.I)
+    govde = re.sub(r"<(style|script|head)[^>]*>.*?</\1>", " ", metin, flags=re.S | re.I)
+    govde = re.sub(r"<[^>]+>", " ", govde)
+    govde = re.sub(r"\s+", " ", govde).strip()
+    sunucu = yanit.headers.get("server") or yanit.headers.get("via") or ""
+    parcalar = ["HTML sayfası (servisten değil, aradaki bir cihazdan geliyor olabilir)"]
+    if sunucu:
+        parcalar.append(f"gönderen: {sunucu}")
+    if baslik:
+        baslik_metni = re.sub(r"\s+", " ", baslik.group(1)).strip()[:120]
+        parcalar.append(f"başlık: {baslik_metni}")
+    if govde:
+        parcalar.append(f"metin: {govde[:300]}")
+    return " · ".join(parcalar) + kayit
+
+
 def windows_proxy(url: str) -> str:
     """Windows Internet Ayarlari'ndaki elle girilmis proxy (Bruno, tarayici bunu kullanir). PAC desteklenmez."""
     import urllib.request
@@ -140,6 +171,8 @@ def seslendir(icerik: str) -> tuple[bytes, str]:
     }
     if config.TTS_KEY:
         headerlar["Ocp-Apim-Subscription-Key"] = config.TTS_KEY
+    if config.TTS_USER_AGENT:
+        headerlar["User-Agent"] = config.TTS_USER_AGENT
 
     proxy, ortam = proxy_secimi()
     if proxy:
@@ -196,7 +229,8 @@ def seslendir(icerik: str) -> tuple[bytes, str]:
                 503: " Servis meşgul / bakımda.",
                 504: f" Aradaki gateway {sure:.0f} sn sonra zaman aşımına uğradı.",
             }.get(yanit.status_code, "")
-            son_hata = f"HTTP {yanit.status_code}.{aciklama} Yanıt: {yanit.text[:300]}"
+            yol = f" İstek {proxy} proxy'si üzerinden gitti." if proxy else " İstek doğrudan (proxy'siz) gitti."
+            son_hata = f"HTTP {yanit.status_code}.{aciklama}{yol} Yanıt: {yanit_ozeti(yanit)}"
             if yanit.status_code not in TEKRAR_KODLARI:
                 raise TTSHatasi(son_hata)   # 400/401 gibi hatalarda tekrar denemenin anlami yok
         log.warning(f"TTS hatası ({deneme}. deneme): {son_hata}")

@@ -5,6 +5,8 @@ Kullanim (proje klasorunde):
     .venv\\Scripts\\python tts_test.py ssml.txt       -> dosyadaki icerik (LLM'den donen <prosody>... metni)
     .venv\\Scripts\\python tts_test.py --proxysiz     -> ortam proxy'sini kullanmadan dene
     .venv\\Scripts\\python tts_test.py --windows      -> Windows Internet Ayarlari'ndaki proxy ile dene
+    .venv\\Scripts\\python tts_test.py --tek          -> ilk deneme basarisiz olsa da baska yol deneme
+Ilk deneme basarisiz olursa proxy'siz, Windows proxy'si ve farkli User-Agent ile kendiliginden dener.
 Basariliysa sesi tts_test.mp3 (veya .wav) olarak kaydeder. Onbellek kullanilmaz.
 """
 import logging
@@ -103,12 +105,53 @@ print(f"TTS_TIMEOUT : {config.TTS_TIMEOUT:.0f} sn")
 print(f"İçerik      : {len(icerik)} karakter\n")
 ag_tanilama()
 
-bas = time.monotonic()
-try:
-    ses, ssml = tts_client.seslendir(icerik)
-except Exception as e:
-    print(f"\nHATA ({time.monotonic() - bas:.0f} sn, {type(e).__name__}): {e}")
+TARAYICI_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DocVoice/1.0"
+
+
+def dene(ad: str, proxy: str | None = None, ua: str | None = None):
+    """Tek istek; ayarlari gecici olarak degistirir. Doner: ses baytlari veya None."""
+    eski = (config.TTS_PROXY, config.TTS_USER_AGENT)
+    if proxy is not None:
+        config.TTS_PROXY = proxy
+    if ua is not None:
+        config.TTS_USER_AGENT = ua
+    secilen, _ = tts_client.proxy_secimi()
+    print(f"--- Deneme: {ad}  (proxy: {secilen or 'yok'}, User-Agent: {config.TTS_USER_AGENT or 'python-httpx'})")
+    bas = time.monotonic()
+    try:
+        ses, _ = tts_client.seslendir(icerik)
+    except Exception as e:
+        print(f"    HATA ({time.monotonic() - bas:.0f} sn, {type(e).__name__}): {e}\n")
+        return None
+    finally:
+        config.TTS_PROXY, config.TTS_USER_AGENT = eski
+    print(f"    BAŞARILI ({time.monotonic() - bas:.0f} sn): {len(ses)} bayt ses\n")
+    return ses
+
+
+ses = dene("şu anki .env ayarları")
+oneri = ""
+if ses is None and "--tek" not in sys.argv:
+    print("İlk deneme başarısız; farklı yollar deneniyor (her biri tek istek).\n")
+    secenekler = [("proxy'siz, doğrudan", "yok", None, "TTS_PROXY=yok")]
+    if tts_client.windows_proxy(config.TTS_URL):
+        secenekler.append(("Windows proxy'si (Bruno gibi)", "windows", None, "TTS_PROXY=windows"))
+    secenekler += [
+        ("farklı User-Agent", None, TARAYICI_UA, f"TTS_USER_AGENT={TARAYICI_UA}"),
+        ("proxy'siz + farklı User-Agent", "yok", TARAYICI_UA, f"TTS_PROXY=yok ve TTS_USER_AGENT={TARAYICI_UA}"),
+    ]
+    for ad, proxy, ua, ayar in secenekler:
+        ses = dene(ad, proxy, ua)
+        if ses is not None:
+            oneri = ayar
+            break
+
+if ses is None:
+    print("SONUÇ: hiçbir yol çalışmadı. Yukarıdaki HATA satırlarını (özellikle HTML sayfasının başlığını) "
+          "paylaşın; sayfanın tamamı output/tts_son_hata.html dosyasında.")
     sys.exit(1)
 dosya = Path(f"tts_test.{tts_client.dosya_uzantisi()}")
 dosya.write_bytes(ses)
-print(f"\nBAŞARILI ({time.monotonic() - bas:.0f} sn): {len(ses)} bayt ses -> {dosya.resolve()}")
+print(f"SONUÇ: BAŞARILI, ses -> {dosya.resolve()}")
+if oneri:
+    print(f"ÇÖZÜM: .env dosyasına şunu ekleyin ve uygulamayı yeniden başlatın:\n    {oneri.replace(' ve ', chr(10) + '    ')}")
